@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AirQ Monitor – Giám sát Chất lượng Không khí</title>
+  <meta name="description" content="Hệ thống giám sát chất lượng không khí real-time: AQI, PM2.5, PM10, CO₂, nhiệt độ, độ ẩm." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Google Maps fills entire background -->
+  <div id="map"></div>
+
+  <!-- ── Top bar ─────────────────────────────────────────── -->
+  <header class="top-bar glass" role="banner">
+    <div class="brand">
+      <div class="brand-pulse"></div>
+      <span class="brand-name">🌬️ AirQ Monitor</span>
+    </div>
+    <div class="top-center">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText" class="status-text">Đang kết nối…</span>
+      <span class="divider">|</span>
+      <span id="lastUpdate" class="last-update">--</span>
+    </div>
+    <div id="headerTime" class="header-time"></div>
+  </header>
+
+  <!-- ── Side panel ──────────────────────────────────────── -->
+  <aside class="side-panel glass" id="sidePanel" aria-label="Dashboard">
+
+    <!-- Station info -->
+    <div class="station-header">
+      <div class="station-icon">📍</div>
+      <div>
+        <div class="station-name" id="stationName">Trạm đo</div>
+        <div class="station-coords" id="stationCoords">--</div>
+      </div>
+    </div>
+
+    <!-- AQI Gauge -->
+    <div class="aqi-block">
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" viewBox="0 0 200 115" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- Track -->
+          <circle id="gaugeTrack" cx="100" cy="100" r="80"
+            fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="14"
+            stroke-linecap="round"
+            stroke-dasharray="376.99 502.65"
+            transform="rotate(135 100 100)" />
+          <!-- Fill -->
+          <circle id="gaugeFill" cx="100" cy="100" r="80"
+            fill="none" stroke="#00e400" stroke-width="14"
+            stroke-linecap="round"
+            stroke-dasharray="0 502.65"
+            transform="rotate(135 100 100)" />
+        </svg>
+        <div class="gauge-overlay">
+          <div class="aqi-num" id="aqiValue">--</div>
+          <div class="aqi-lbl">AQI</div>
+          <div class="aqi-cat" id="aqiCategory">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metric Cards -->
+    <div class="metrics-grid">
+      <div class="metric-card" id="card-pm25">
+        <div class="mc-icon">💨</div>
+        <div class="mc-body">
+          <div class="mc-label">PM2.5</div>
+          <div class="mc-val"><span id="val-pm25">--</span><span class="mc-unit">µg/m³</span></div>
+        </div>
+        <div class="mc-bar"><div class="mc-bar-fill" id="bar-pm25" style="width:0%"></div></div>
+      </div>
+
+      <div class="metric-card" id="card-pm10">
+        <div class="mc-icon">🌫️</div>
+        <div class="mc-body">
+          <div class="mc-label">PM10</div>
+          <div class="mc-val"><span id="val-pm10">--</span><span class="mc-unit">µg/m³</span></div>
+        </div>
+        <div class="mc-bar"><div class="mc-bar-fill" id="bar-pm10" style="width:0%"></div></div>
+      </div>
+
+      <div class="metric-card" id="card-pm1">
+        <div class="mc-icon">🔬</div>
+        <div class="mc-body">
+          <div class="mc-label">PM1.0</div>
+          <div class="mc-val"><span id="val-pm1">--</span><span class="mc-unit">µg/m³</span></div>
+        </div>
+        <div class="mc-bar"><div class="mc-bar-fill" id="bar-pm1" style="width:0%"></div></div>
+      </div>
+
+      <div class="metric-card" id="card-co2">
+        <div class="mc-icon">🏭</div>
+        <div class="mc-body">
+          <div class="mc-label">CO₂</div>
+          <div class="mc-val"><span id="val-co2">--</span><span class="mc-unit">ppm</span></div>
+        </div>
+        <div class="mc-bar"><div class="mc-bar-fill" id="bar-co2" style="width:0%"></div></div>
+      </div>
+
+      <div class="metric-card half" id="card-temp">
+        <div class="mc-icon">🌡️</div>
+        <div class="mc-body">
+          <div class="mc-label">Nhiệt độ</div>
+          <div class="mc-val"><span id="val-temp">--</span><span class="mc-unit">°C</span></div>
+        </div>
+      </div>
+
+      <div class="metric-card half" id="card-hum">
+        <div class="mc-icon">💧</div>
+        <div class="mc-body">
+          <div class="mc-label">Độ ẩm</div>
+          <div class="mc-val"><span id="val-hum">--</span><span class="mc-unit">%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Historical Chart -->
+    <div class="chart-section">
+      <div class="chart-header">
+        <span class="chart-title">Lịch sử</span>
+        <div class="chart-tabs" role="group" aria-label="Chọn chỉ số">
+          <button class="ctab active" id="tab-pm25" onclick="switchMetric('pm2_5','tab-pm25')">PM2.5</button>
+          <button class="ctab"        id="tab-co2"  onclick="switchMetric('co2','tab-co2')">CO₂</button>
+          <button class="ctab"        id="tab-aqi"  onclick="switchMetric('aqi','tab-aqi')">AQI</button>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="historyChart"></canvas>
+      </div>
+    </div>
+
+    <!-- AQI Legend -->
+    <div class="legend-block">
+      <div class="legend-title">Thang AQI</div>
+      <div class="legend-row"><span class="ldot" style="background:#00e400"></span>0–50 Tốt</div>
+      <div class="legend-row"><span class="ldot" style="background:#ffff00"></span>51–100 Trung bình</div>
+      <div class="legend-row"><span class="ldot" style="background:#ff7e00"></span>101–150 Không tốt (nhạy cảm)</div>
+      <div class="legend-row"><span class="ldot" style="background:#ff0000"></span>151–200 Có hại</div>
+      <div class="legend-row"><span class="ldot" style="background:#8f3f97"></span>201–300 Rất có hại</div>
+      <div class="legend-row"><span class="ldot" style="background:#7e0023"></span>301+ Nguy hiểm</div>
+    </div>
+
+  </aside>
+
+  <!-- Loading overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div class="loading-text">Đang tải dữ liệu…</div>
+  </div>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <!-- App logic (loads Maps dynamically) -->
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,214 @@
+/* ============================================================
+   Base & CSS Variables
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #050d1a;
+  --glass-bg:  rgba(8, 20, 45, 0.82);
+  --glass-bdr: rgba(255, 255, 255, 0.07);
+  --text:      #e8eaf6;
+  --text-dim:  #8892a4;
+  --panel-w:   360px;
+  --topbar-h:  58px;
+  --radius:    16px;
+  --blur:      22px;
+
+  /* AQI colours */
+  --c-good:    #00e400;
+  --c-mod:     #ffff00;
+  --c-usg:     #ff7e00;
+  --c-unh:     #ff0000;
+  --c-very:    #8f3f97;
+  --c-haz:     #7e0023;
+}
+
+html, body { height: 100%; overflow: hidden; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+
+/* ============================================================
+   Google Maps Full-Screen
+   ============================================================ */
+#map {
+  position: fixed; inset: 0;
+  z-index: 0;
+}
+
+/* ============================================================
+   Glass utility
+   ============================================================ */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--glass-bdr);
+}
+
+/* ============================================================
+   Top Bar
+   ============================================================ */
+.top-bar {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: var(--topbar-h);
+  z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  border-top: none; border-left: none; border-right: none;
+  border-bottom: 1px solid var(--glass-bdr);
+}
+
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-name { font-size: 1.1rem; font-weight: 700; letter-spacing: -.3px; }
+.brand-pulse {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--c-good);
+  box-shadow: 0 0 0 0 rgba(0,228,0,.6);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0,228,0,.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(0,228,0,0); }
+  100% { box-shadow: 0 0 0 0 rgba(0,228,0,0); }
+}
+
+.top-center { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--text-dim); }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #555; transition: background .4s;
+}
+.status-dot.online  { background: var(--c-good); }
+.status-dot.offline { background: #ff4444; }
+.divider { opacity: .3; }
+.header-time { font-size: .8rem; color: var(--text-dim); font-variant-numeric: tabular-nums; min-width: 80px; text-align: right; }
+
+/* ============================================================
+   Side Panel
+   ============================================================ */
+.side-panel {
+  position: fixed;
+  top: var(--topbar-h); left: 0; bottom: 0;
+  width: var(--panel-w);
+  z-index: 90;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 14px 24px;
+  border-top: none; border-left: none; border-bottom: none;
+  border-right: 1px solid var(--glass-bdr);
+  display: flex; flex-direction: column; gap: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.08) transparent;
+}
+.side-panel::-webkit-scrollbar { width: 4px; }
+.side-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 4px; }
+
+/* ── Station header ── */
+.station-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.04);
+  border-radius: 12px;
+  border: 1px solid var(--glass-bdr);
+}
+.station-icon { font-size: 1.3rem; }
+.station-name  { font-size: .95rem; font-weight: 600; }
+.station-coords { font-size: .72rem; color: var(--text-dim); margin-top: 2px; }
+
+/* ── AQI Gauge ── */
+.aqi-block { display: flex; flex-direction: column; align-items: center; }
+.gauge-wrap { position: relative; width: 200px; }
+.gauge-svg  { width: 100%; display: block; }
+
+.gauge-overlay {
+  position: absolute;
+  top: 42%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+.aqi-num  { font-size: 2.6rem; font-weight: 800; line-height: 1; transition: color .6s; }
+.aqi-lbl  { font-size: .65rem; font-weight: 500; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+.aqi-cat  { font-size: .75rem; font-weight: 600; margin-top: 4px; transition: color .6s; }
+
+/* ── Metric Cards ── */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.metric-card {
+  grid-column: span 2;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--glass-bdr);
+  border-radius: 12px;
+  padding: 10px 12px 8px;
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap;
+  transition: border-color .4s, background .4s;
+  position: relative; overflow: hidden;
+}
+.metric-card.half { grid-column: span 1; }
+
+.metric-card.danger  { border-color: rgba(255,0,0,.35); background: rgba(255,0,0,.06); }
+.metric-card.warning { border-color: rgba(255,126,0,.35); background: rgba(255,126,0,.06); }
+.metric-card.good    { border-color: rgba(0,228,0,.2); }
+
+.mc-icon { font-size: 1.3rem; }
+.mc-body { flex: 1; min-width: 0; }
+.mc-label { font-size: .68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .5px; }
+.mc-val   { font-size: 1.15rem; font-weight: 700; display: flex; align-items: baseline; gap: 3px; }
+.mc-unit  { font-size: .65rem; font-weight: 400; color: var(--text-dim); }
+
+.mc-bar { width: 100%; height: 3px; background: rgba(255,255,255,.08); border-radius: 2px; margin-top: 6px; }
+.mc-bar-fill { height: 100%; border-radius: 2px; background: var(--c-good); transition: width .8s ease, background .6s; }
+
+/* ── Chart ── */
+.chart-section { display: flex; flex-direction: column; gap: 8px; }
+.chart-header  { display: flex; align-items: center; justify-content: space-between; }
+.chart-title   { font-size: .78rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: .5px; }
+.chart-tabs    { display: flex; gap: 4px; }
+.ctab {
+  font-size: .7rem; font-weight: 500;
+  padding: 3px 9px; border-radius: 20px;
+  border: 1px solid var(--glass-bdr);
+  background: transparent; color: var(--text-dim);
+  cursor: pointer; transition: all .2s;
+}
+.ctab:hover, .ctab.active {
+  background: rgba(255,255,255,.12); color: var(--text);
+  border-color: rgba(255,255,255,.25);
+}
+.chart-wrap { position: relative; height: 120px; }
+.chart-wrap canvas { width: 100% !important; }
+
+/* ── AQI Legend ── */
+.legend-block { padding: 10px 12px; background: rgba(255,255,255,.03); border: 1px solid var(--glass-bdr); border-radius: 12px; }
+.legend-title { font-size: .7rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim); margin-bottom: 8px; font-weight: 600; }
+.legend-row   { display: flex; align-items: center; gap: 7px; font-size: .72rem; color: var(--text-dim); margin-bottom: 4px; }
+.ldot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ============================================================
+   Loading overlay
+   ============================================================ */
+.loading-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(5,13,26,.92);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  transition: opacity .5s;
+}
+.loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.spinner {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 3px solid rgba(255,255,255,.1);
+  border-top-color: var(--c-good);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: .85rem; color: var(--text-dim); }
+
+/* ============================================================
+   Responsive — hide panel on narrow screens
+   ============================================================ */
+@media (max-width: 480px) {
+  :root { --panel-w: 100vw; }
+  .side-panel { top: var(--topbar-h); bottom: 40vh; }
+  #map { top: 60vh; }
+}
