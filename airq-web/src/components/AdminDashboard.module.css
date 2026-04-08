@@ -1,5 +1,7 @@
 .root {
   min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
   background: radial-gradient(circle at top left, #1b2735 0%, #090a0f 100%);
   color: #fff;
   padding: 40px;

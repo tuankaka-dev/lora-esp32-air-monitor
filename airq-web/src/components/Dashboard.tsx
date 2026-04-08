@@ -64,7 +64,9 @@ function buildSampleHistory(lat = DEFAULT_LAT, lng = DEFAULT_LNG): SensorReading
 }
 
 export default function Dashboard() {
-  const [latest,    setLatest]    = useState<SensorReading | null>(null);
+  const [nodes,       setNodes]       = useState<SensorReading[]>([]);
+  const [selectedName,setSelectedName]= useState<string | null>(null);
+  const [allHistory,  setAllHistory]  = useState<SensorReading[]>([]);
   const [history,   setHistory]   = useState<SensorReading[]>([]);
   const [status,    setStatus]    = useState<'loading' | 'online' | 'offline'>('loading');
   const [errMsg,    setErrMsg]    = useState('');
@@ -108,36 +110,54 @@ export default function Dashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [{ data: latestArr, error: e1 }, { data: histArr, error: e2 }] = await Promise.all([
+      const [{ data: recentArr, error: e1 }, { data: histArr, error: e2 }] = await Promise.all([
         supabase
           .from('sensor_readings')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(1),
+          .limit(300), // Get enough to extract unique active nodes
         supabase
           .from('sensor_readings')
-          .select('created_at, pm2_5, co2, aqi')
+          .select('created_at, pm2_5, co2, aqi, station_name')
           .order('created_at', { ascending: false })
-          .limit(HISTORY_LIMIT),
+          .limit(200), // Larger limit to contain history for multiple stations
       ]);
 
       if (e1 || e2) throw new Error((e1 || e2)?.message);
-      if (latestArr && latestArr.length > 0) {
-        setLatest(latestArr[0] as SensorReading);
-        setHistory((histArr ?? []) as SensorReading[]);
+      
+      if (recentArr && recentArr.length > 0) {
+        // Group by distinct station string to find the latest for each unique station
+        const nodesMap = new Map<string, SensorReading>();
+        recentArr.forEach(r => {
+          const key = r.station_name || 'Khác';
+          if (!nodesMap.has(key)) nodesMap.set(key, r as SensorReading);
+        });
+        const newNodes = Array.from(nodesMap.values());
+        
+        setNodes(newNodes);
+        setAllHistory((histArr ?? []) as SensorReading[]);
+        
+        // Ensure a selected name exists (default to the absolute latest one)
+        setSelectedName(prev => {
+          if (prev && nodesMap.has(prev)) return prev;
+          return newNodes.length > 0 ? newNodes[0].station_name ?? null : null;
+        });
+
         setStatus('online');
         setErrMsg('');
       } else {
-        // No real data → use sample data at Đà Nẵng
-        setLatest(buildSampleLatest());
-        setHistory(buildSampleHistory());
+        const fall = buildSampleLatest();
+        setNodes([fall]);
+        setAllHistory(buildSampleHistory());
+        setSelectedName(fall.station_name ?? null);
         setStatus('online');
         setErrMsg('');
       }
     } catch {
-      // Cannot reach Supabase → use sample data with realistic behavior
-      setLatest(buildSampleLatest());
-      setHistory(buildSampleHistory());
+      const fall = buildSampleLatest();
+      setNodes([fall]);
+      setAllHistory(buildSampleHistory());
+      setSelectedName(fall.station_name ?? null);
       setStatus('online');
       setErrMsg('');
     }
@@ -148,6 +168,10 @@ export default function Dashboard() {
     const id = setInterval(fetchData, REFRESH_MS);
     return () => clearInterval(id);
   }, [fetchData]);
+
+  // Derived state based on selection
+  const latest = nodes.find(n => n.station_name === selectedName) || nodes[0] || null;
+  const history = allHistory.filter(h => (h.station_name || 'Khác') === (selectedName || 'Khác')).slice(0, HISTORY_LIMIT);
 
   const aqi   = latest ? (latest.aqi ?? pm25ToAQI(latest.pm2_5 ?? 0)) : null;
   const level = aqi != null ? getAQILevel(aqi) : null;
@@ -166,7 +190,13 @@ export default function Dashboard() {
   return (
     <div className={styles.root}>
       {/* ── Full-screen map background ── */}
-      <MapView latest={latest} userPos={userPos} panToUserTrigger={panTrigger} />
+      <MapView 
+        nodes={nodes}
+        selectedNodeName={selectedName}
+        onSelectNode={setSelectedName}
+        userPos={userPos} 
+        panToUserTrigger={panTrigger} 
+      />
 
       {/* ── Top bar ── */}
       <header className={`${styles.topBar} glass`} role="banner">
