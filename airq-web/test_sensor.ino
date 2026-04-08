@@ -8,13 +8,13 @@
 // ============================================================
 //  CẤU HÌNH - Điền thông tin vào đây
 // ============================================================
-#define WIFI_SSID        "YOUR_WIFI_SSID"
-#define WIFI_PASSWORD    "YOUR_WIFI_PASSWORD"
-#define SUPABASE_URL     "https://YOUR_PROJECT.supabase.co"
-#define SUPABASE_KEY     "YOUR_SUPABASE_ANON_KEY"
+#define WIFI_SSID        "Tuan Thinh"
+#define WIFI_PASSWORD    "0906478818"
+#define SUPABASE_URL     "https://qwkaqgvopobfjshnbnpn.supabase.co  "
+#define SUPABASE_KEY     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3a2FxZ3ZvcG9iZmpzaG5ibnBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NTQ5NjgsImV4cCI6MjA5MTIzMDk2OH0.ORUJ3KsBMC4A8YpjrKcnjO4NcT8hdia4pxwRIEUm6z8"
 #define STATION_NAME     "Station 1"
-#define STATION_LAT      10.7769      // Vĩ độ trạm đo
-#define STATION_LNG      106.7009     // Kinh độ trạm đo
+#define STATION_LAT      16.0544      // Vĩ độ trạm đo
+#define STATION_LNG      108.2022     // Kinh độ trạm đo
 #define SEND_INTERVAL    30000        // Gửi mỗi 30 giây (ms)
 // ============================================================
 
