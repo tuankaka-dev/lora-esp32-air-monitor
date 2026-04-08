@@ -67,7 +67,6 @@ export default function Dashboard() {
   const [nodes,       setNodes]       = useState<SensorReading[]>([]);
   const [selectedName,setSelectedName]= useState<string | null>(null);
   const [allHistory,  setAllHistory]  = useState<SensorReading[]>([]);
-  const [history,   setHistory]   = useState<SensorReading[]>([]);
   const [status,    setStatus]    = useState<'loading' | 'online' | 'offline'>('loading');
   const [errMsg,    setErrMsg]    = useState('');
   const [now,       setNow]       = useState('');

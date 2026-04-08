@@ -7,30 +7,26 @@ import { SensorReading, getAQILevel, pm25ToAQI, fmt } from '@/lib/aqi';
 import styles from './MapView.module.css';
 
 interface MapViewProps {
-  latest: SensorReading | null;
+  nodes: SensorReading[];
+  selectedNodeName: string | null;
+  onSelectNode: (name: string) => void;
   userPos?: { lat: number; lng: number } | null;
   panToUserTrigger?: number;
 }
 
 let mapInstance: L.Map | null = null;
-let circleInstance: L.Circle | null = null;
 let userMarker: L.CircleMarker | null = null;
 let userAccuracyCircle: L.Circle | null = null;
-let latestRef: SensorReading | null = null;
 
-// Dark tile layer from CartoDB (free, no API key needed)
 const DARK_TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>';
 
-// Đà Nẵng default
 const DEFAULT_CENTER: L.LatLngExpression = [16.0544, 108.2022];
 
-export default function MapView({ latest, userPos, panToUserTrigger }: MapViewProps) {
+export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos, panToUserTrigger }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapLoaded = useRef(false);
-
-  // Keep ref in sync for the click handler closure
-  latestRef = latest;
+  const circlesRef = useRef<Map<string, L.Circle>>(new Map());
 
   // Initialize Leaflet map once
   useEffect(() => {
@@ -44,87 +40,103 @@ export default function MapView({ latest, userPos, panToUserTrigger }: MapViewPr
       attributionControl: true,
     });
 
-    // Add dark tile layer (CartoDB Dark Matter – uses OpenStreetMap data)
     L.tileLayer(DARK_TILE_URL, {
       attribution: TILE_ATTRIBUTION,
       maxZoom: 19,
       subdomains: 'abcd',
     }).addTo(mapInstance);
 
-    // Position zoom controls on the bottom left (avoids top right panel overlap)
     L.control.zoom({ position: 'bottomleft' }).addTo(mapInstance);
-
-    // Create the AQI circle overlay
-    circleInstance = L.circle(DEFAULT_CENTER, {
-      radius: 300,
-      fillColor: '#00e400',
-      fillOpacity: 0.18,
-      color: '#00e400',
-      weight: 2,
-      opacity: 0.6,
-    }).addTo(mapInstance);
-
-    // Click handler → show popup with sensor data
-    circleInstance.on('click', () => {
-      const d = latestRef;
-      if (!d || !circleInstance) return;
-      const aqi = d.aqi ?? pm25ToAQI(d.pm2_5 ?? 0);
-      const lvl = getAQILevel(aqi);
-
-      const popupContent = `
-        <div style="font-family:Inter,sans-serif;padding:6px 2px;min-width:200px;color:#e8eaf6">
-          <div style="font-weight:700;font-size:0.95rem;margin-bottom:6px;color:#fff">${d.station_name ?? 'Trạm đo'}</div>
-          <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:0.8rem">
-            <span style="color:#8892a4">AQI</span>
-            <strong style="color:${lvl.color}">${aqi} – ${lvl.label}</strong>
-            <span style="color:#8892a4">PM2.5</span><span>${fmt(d.pm2_5)} µg/m³</span>
-            <span style="color:#8892a4">PM10</span><span>${fmt(d.pm10)} µg/m³</span>
-            <span style="color:#8892a4">PM1.0</span><span>${fmt(d.pm1_0)} µg/m³</span>
-            <span style="color:#8892a4">CO₂</span><span>${fmt(d.co2, 0)} ppm</span>
-            <span style="color:#8892a4">Nhiệt độ</span><span>${fmt(d.temperature)} °C</span>
-            <span style="color:#8892a4">Độ ẩm</span><span>${fmt(d.humidity)} %</span>
-          </div>
-        </div>
-      `;
-
-      circleInstance.unbindPopup();
-      circleInstance.bindPopup(popupContent, {
-        maxWidth: 280,
-        className: 'airq-popup',
-      }).openPopup();
-    });
 
     return () => {
       if (mapInstance) {
         mapInstance.remove();
         mapInstance = null;
-        circleInstance = null;
         userMarker = null;
         userAccuracyCircle = null;
         mapLoaded.current = false;
+        circlesRef.current.clear();
       }
     };
   }, []);
 
-  // Update circle when latest data changes
+  // Sync circles with nodes data
   useEffect(() => {
-    if (!circleInstance || !mapInstance || !latest) return;
-    const aqi = latest.aqi ?? pm25ToAQI(latest.pm2_5 ?? 0);
-    const lvl = getAQILevel(aqi);
-    const pos: L.LatLngExpression = [+(latest.lat ?? 16.0544), +(latest.lng ?? 108.2022)];
-    circleInstance.setLatLng(pos);
-    circleInstance.setStyle({ fillColor: lvl.color, color: lvl.color });
-    mapInstance.panTo(pos);
-  }, [latest]);
+    if (!mapInstance || !nodes) return;
 
-  // Update user position marker
+    const currentNames = new Set(nodes.map(n => n.station_name || 'Khác'));
+
+    // Remove obsolete circles
+    circlesRef.current.forEach((circle, name) => {
+      if (!currentNames.has(name)) {
+        circle.remove();
+        circlesRef.current.delete(name);
+      }
+    });
+
+    // Add or Update circles
+    nodes.forEach(d => {
+      const name = d.station_name || 'Khác';
+      const aqi = d.aqi ?? pm25ToAQI(d.pm2_5 ?? 0);
+      const lvl = getAQILevel(aqi);
+      const pos: L.LatLngExpression = [+(d.lat ?? 16.0544), +(d.lng ?? 108.2022)];
+
+      let circle = circlesRef.current.get(name);
+      
+      if (!circle) {
+        circle = L.circle(pos, {
+          radius: 300,
+          fillColor: lvl.color,
+          fillOpacity: 0.18,
+          color: lvl.color,
+          weight: 2,
+          opacity: 0.6,
+        }).addTo(mapInstance!);
+        
+        circle.on('click', () => {
+          onSelectNode(name);
+        });
+        
+        circlesRef.current.set(name, circle);
+      } else {
+        circle.setLatLng(pos);
+        circle.setStyle({ fillColor: lvl.color, color: lvl.color });
+      }
+
+      const popupContent = `
+        <div style="font-family:Inter,sans-serif;padding:6px 2px;min-width:200px;color:#e8eaf6">
+          <div style="font-weight:700;font-size:0.95rem;margin-bottom:6px;color:#fff">${name}</div>
+          <div style="font-size:0.75rem;color:#4285f4;margin-bottom:8px;font-style:italic">Nhấn vào để xem đầy đủ ở bảng phụ</div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:0.8rem">
+            <span style="color:#8892a4">AQI</span>
+            <strong style="color:${lvl.color}">${aqi} – ${lvl.label}</strong>
+            <span style="color:#8892a4">PM2.5</span><span>${fmt(d.pm2_5)} µg/m³</span>
+            <span style="color:#8892a4">Tọa độ</span><span>${pos[0]}, ${pos[1]}</span>
+          </div>
+        </div>
+      `;
+      circle.unbindPopup();
+      circle.bindPopup(popupContent, { maxWidth: 280, className: 'airq-popup' });
+    });
+  }, [nodes, onSelectNode]);
+
+  // Pan to selected node
+  useEffect(() => {
+    if (!mapInstance || !selectedNodeName) return;
+    const selectedCircle = circlesRef.current.get(selectedNodeName);
+    if (selectedCircle) {
+      mapInstance.panTo(selectedCircle.getLatLng(), { animate: true });
+      selectedCircle.openPopup();
+    }
+  }, [selectedNodeName]);
+
+  // Sync user position marker
   useEffect(() => {
     if (!mapInstance || !userPos) return;
 
     const userLatLng: L.LatLngExpression = [userPos.lat, userPos.lng];
 
     if (!userMarker) {
-      // Blue pulsing dot for user location
       userMarker = L.circleMarker(userLatLng, {
         radius: 7,
         fillColor: '#4285f4',
@@ -156,13 +168,12 @@ export default function MapView({ latest, userPos, panToUserTrigger }: MapViewPr
     }
   }, [userPos]);
 
-  // Pan to user location when triggered
+  // Force pan to user trigger
   useEffect(() => {
     if (!mapInstance || !userPos || !panToUserTrigger) return;
     mapInstance.panTo([userPos.lat, userPos.lng], { animate: true });
-    // Also open popup on user marker
     if (userMarker) {
-      setTimeout(() => userMarker!.openPopup(), 400); // Wait for pan
+      setTimeout(() => userMarker!.openPopup(), 400);
     }
   }, [panToUserTrigger, userPos]);
 
