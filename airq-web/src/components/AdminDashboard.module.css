@@ -1,0 +1,242 @@
+.root {
+  min-height: 100vh;
+  background: radial-gradient(circle at top left, #1b2735 0%, #090a0f 100%);
+  color: #fff;
+  padding: 40px;
+  font-family: var(--font-inter), sans-serif;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.titleIcon {
+  font-size: 2rem;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+}
+
+.btnPrimary {
+  background: #2196f3;
+  color: white;
+}
+.btnPrimary:hover {
+  background: #1e88e5;
+  box-shadow: 0 0 12px rgba(33, 150, 243, 0.4);
+}
+
+.btnSecondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.btnSecondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btnDanger {
+  background: rgba(244, 67, 54, 0.15);
+  color: #ff5252;
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+.btnDanger:hover {
+  background: rgba(244, 67, 54, 0.3);
+}
+
+.btnEdit {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+.btnEdit:hover {
+  background: rgba(255, 193, 7, 0.3);
+}
+
+/* Glass panel */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Table */
+.tableContainer {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.table th, .table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.table th {
+  background: rgba(0,0,0,0.2);
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  white-space: nowrap;
+}
+
+.table tbody tr:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.actionsCell {
+  display: flex;
+  gap: 8px;
+}
+
+/* Loading state */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: rgba(255,255,255,0.5);
+}
+
+/* Modal */
+.modalOverlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal {
+  width: 100%;
+  max-width: 500px;
+  background: #11141e;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding-bottom: 16px;
+}
+
+.modalTitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.5);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+.closeBtn:hover {
+  color: #fff;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.formField.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.formField label {
+  display: block;
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 6px;
+}
+
+.formField input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+.formField input:focus {
+  outline: none;
+  border-color: #2196f3;
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

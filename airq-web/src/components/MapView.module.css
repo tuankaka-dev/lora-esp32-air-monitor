@@ -1,0 +1,90 @@
+.map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+/* ── Leaflet popup dark theme ── */
+.map :global(.leaflet-popup-content-wrapper) {
+  background: rgba(10, 20, 40, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  color: #e8eaf6;
+}
+
+.map :global(.leaflet-popup-tip) {
+  background: rgba(10, 20, 40, 0.92);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-top: none;
+  border-left: none;
+}
+
+.map :global(.leaflet-popup-content) {
+  margin: 10px 12px;
+  line-height: 1.5;
+}
+
+.map :global(.leaflet-popup-close-button) {
+  color: #8892a4 !important;
+  font-size: 18px !important;
+  padding: 6px 8px 0 0 !important;
+}
+.map :global(.leaflet-popup-close-button:hover) {
+  color: #fff !important;
+}
+
+/* ── Leaflet zoom controls dark theme ── */
+.map :global(.leaflet-bottom.leaflet-left) {
+  margin-bottom: 20px;
+  margin-left: 10px;
+}
+
+.map :global(.leaflet-control-zoom) {
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+}
+
+.map :global(.leaflet-control-zoom a) {
+  background: rgba(10, 20, 40, 0.85) !important;
+  color: #e8eaf6 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  font-size: 16px !important;
+}
+
+.map :global(.leaflet-control-zoom a:hover) {
+  background: rgba(20, 35, 60, 0.95) !important;
+}
+
+/* ── Attribution dark theme ── */
+.map :global(.leaflet-control-attribution) {
+  background: rgba(10, 20, 40, 0.7) !important;
+  color: #8892a4 !important;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+}
+.map :global(.leaflet-control-attribution a) {
+  color: #5a8ad4 !important;
+}
+
+/* ── User location pulse animation ── */
+@keyframes user-pulse {
+  0% { 
+    box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(66, 133, 244, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(66, 133, 244, 0);
+  }
+}

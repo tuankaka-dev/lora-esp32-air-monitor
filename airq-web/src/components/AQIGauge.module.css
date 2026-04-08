@@ -1,0 +1,48 @@
+.wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.svg {
+  width: 100%;
+  max-width: 180px;
+  overflow: visible;
+}
+
+.overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.value {
+  font-size: 2.2rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -1px;
+  transition: color 0.6s ease;
+}
+
+.label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: #8892a4;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.category {
+  font-size: 0.68rem;
+  font-weight: 600;
+  margin-top: 2px;
+  transition: color 0.6s ease;
+  white-space: nowrap;
+}

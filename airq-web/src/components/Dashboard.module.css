@@ -1,0 +1,335 @@
+.root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Top bar ─────────────────────────────────────────────────── */
+.topBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 0 20px;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+}
+
+/* Brand */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.brandPulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00e400;
+  position: relative;
+  flex-shrink: 0;
+}
+.brandPulse::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: rgba(0, 228, 64, 0.35);
+  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+.brandName {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+/* Center */
+.topCenter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.statusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8892a4;
+  flex-shrink: 0;
+}
+.statusDot.loading  { background: #e6e600; animation: breathe 1.4s ease-in-out infinite; }
+.statusDot.online   { background: #00e400; }
+.statusDot.offline  { background: #ff4444; }
+.statusText { color: #e8eaf6; white-space: nowrap; }
+.divider    { color: rgba(255,255,255,0.18); }
+.lastUpdate { color: #8892a4; white-space: nowrap; }
+
+/* Top right */
+.topRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Geolocation button */
+.geoBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: #8892a4;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  flex-shrink: 0;
+}
+.geoBtn:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.2);
+  color: #e8eaf6;
+}
+.geoBtn.geoActive {
+  color: #3b82f6;
+  border-color: rgba(59,130,246,0.35);
+  background: rgba(59,130,246,0.08);
+}
+.geoSpinner {
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  border-top-color: #3b82f6;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Clock */
+.clock {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e8eaf6;
+  letter-spacing: 0.02em;
+  min-width: 72px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── Side panel ────────────────────────────────────────────────── */
+.panel {
+  position: absolute;
+  top: 56px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 10;
+  width: 310px;
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Station row */
+.stationRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stationIcon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.stationInfo {
+  min-width: 0;
+  flex: 1;
+}
+.stationName {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #e8eaf6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stationCoords {
+  font-size: 0.66rem;
+  color: #8892a4;
+  margin-top: 1px;
+}
+
+/* Metric grid */
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Full-width cards */
+.grid > :not(:nth-last-child(-n+2)) {
+  flex: 1 1 100%;
+}
+
+/* Health Advice block */
+.healthAdvice {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-top: 4px;
+  margin-bottom: 6px;
+  animation: fadeUp 0.4s ease both;
+}
+.healthTitle {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+.healthText {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #e8eaf6;
+}
+
+/* AQI Legend */
+.legend {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.legendTitle {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #8892a4;
+  margin-bottom: 3px;
+}
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.68rem;
+  color: #8892a4;
+}
+.ldot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* User location */
+.userLocation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(59,130,246,0.06);
+  border: 1px solid rgba(59,130,246,0.15);
+  border-radius: 10px;
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+.userLocIcon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.userLocInfo {
+  min-width: 0;
+  flex: 1;
+}
+.userLocLabel {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #8892a4;
+}
+.userLocCoords {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #3b82f6;
+  margin-top: 1px;
+}
+
+/* ── Loading overlay ─────────────────────────────────────────── */
+.loadingOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(5, 13, 26, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  backdrop-filter: blur(6px);
+  animation: fadeUp 0.3s ease;
+}
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255,255,255,0.1);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.loadingText {
+  font-size: 0.85rem;
+  color: #8892a4;
+}
+
+/* ── Animations ──────────────────────────────────────────────── */
+@keyframes pulse-ring {
+  0%   { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .topCenter { display: none; }
+  .panel {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: 55vh;
+    border-radius: 20px 20px 0 0;
+  }
+}

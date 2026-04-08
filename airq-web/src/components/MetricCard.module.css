@@ -1,0 +1,94 @@
+.card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 8px 10px 6px;
+  transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+  animation: fadeUp 0.4s ease both;
+  flex-direction: row;
+  flex-wrap: wrap;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.card:hover {
+  background: rgba(255,255,255,0.055);
+  border-color: rgba(255,255,255,0.12);
+}
+
+.card.good   { border-color: rgba(0,228,64,0.18); }
+.card.warning { border-color: rgba(255,126,0,0.25); background: rgba(255,126,0,0.05); }
+.card.danger  { border-color: rgba(255,68,68,0.3);  background: rgba(255,68,68,0.07); }
+
+.half {
+  flex: 1 1 42%;
+  min-width: 0;
+  padding-bottom: 8px;
+}
+
+.icon {
+  font-size: 1.15rem;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lbl {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #8892a4;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.val {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  margin-top: 1px;
+}
+
+.val span:first-child {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #e8eaf6;
+}
+
+.unit {
+  font-size: 0.62rem;
+  color: #8892a4;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.bar {
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 100px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 100px;
+  transition: width 0.8s ease, background 0.6s ease;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
