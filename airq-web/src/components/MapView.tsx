@@ -11,7 +11,7 @@ interface MapViewProps {
   selectedNodeName: string | null;
   onSelectNode: (name: string) => void;
   userPos?: { lat: number; lng: number } | null;
-  panToUserTrigger?: number;
+  panTarget?: { lat: number; lng: number; t: number } | null;
 }
 
 let mapInstance: L.Map | null = null;
@@ -23,7 +23,7 @@ const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyrigh
 
 const DEFAULT_CENTER: L.LatLngExpression = [16.0544, 108.2022];
 
-export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos, panToUserTrigger }: MapViewProps) {
+export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos, panTarget }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapLoaded = useRef(false);
   const circlesRef = useRef<Map<string, L.Circle>>(new Map());
@@ -58,6 +58,16 @@ export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos
         circlesRef.current.clear();
       }
     };
+  }, []);
+
+  // Update map size when container is resized (e.g. from 50vh to 100vh)
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const observer = new ResizeObserver(() => {
+      mapInstance?.invalidateSize();
+    });
+    observer.observe(mapRef.current);
+    return () => observer.disconnect();
   }, []);
 
   // Sync circles with nodes data
@@ -168,14 +178,11 @@ export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos
     }
   }, [userPos]);
 
-  // Force pan to user trigger
+  // Force pan to target region
   useEffect(() => {
-    if (!mapInstance || !userPos || !panToUserTrigger) return;
-    mapInstance.panTo([userPos.lat, userPos.lng], { animate: true });
-    if (userMarker) {
-      setTimeout(() => userMarker!.openPopup(), 400);
-    }
-  }, [panToUserTrigger, userPos]);
+    if (!mapInstance || !panTarget) return;
+    mapInstance.panTo([panTarget.lat, panTarget.lng], { animate: true });
+  }, [panTarget]);
 
   return <div ref={mapRef} className={styles.map} aria-label="Bản đồ không khí" />;
 }

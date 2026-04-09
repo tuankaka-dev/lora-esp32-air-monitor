@@ -4,161 +4,129 @@ import { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
 import { SensorReading, getAQILevel, pm25ToAQI } from '@/lib/aqi';
-import AQIGauge from '@/components/AQIGauge';
-import MetricCard from '@/components/MetricCard';
-import HistoryChart from '@/components/HistoryChart';
 import styles from './Dashboard.module.css';
 
 // Load MapView client-only (uses Leaflet / OpenStreetMap)
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
 
-const HISTORY_LIMIT = 48;
-const REFRESH_MS    = 30_000;
-
-// ── Đà Nẵng default location ──
+const REFRESH_MS = 30_000;
 const DEFAULT_LAT = 16.0544;
 const DEFAULT_LNG = 108.2022;
 
-// ── Sample data for testing (Đà Nẵng) ──
+function getDistanceKM(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const p = 0.017453292519943295;
+  const c = Math.cos;
+  const a = 0.5 - c((lat2 - lat1) * p) / 2 +
+    c(lat1 * p) * c(lat2 * p) *
+    (1 - c((lon2 - lon1) * p)) / 2;
+  return 12742 * Math.asin(Math.sqrt(a));
+}
+
+function getAqiPointerPos(aqi: number) {
+  if (aqi <= 50) return (aqi / 50) * 16.66;
+  if (aqi <= 100) return 16.66 + ((aqi - 50) / 50) * 16.66;
+  if (aqi <= 150) return 33.33 + ((aqi - 100) / 50) * 16.66;
+  if (aqi <= 200) return 50 + ((aqi - 150) / 50) * 16.66;
+  if (aqi <= 300) return 66.66 + ((aqi - 200) / 100) * 16.66;
+  return 83.33 + Math.min(1, (aqi - 300) / 100) * 16.66;
+}
+
 function buildSampleLatest(lat = DEFAULT_LAT, lng = DEFAULT_LNG): SensorReading {
-  // Generate realistic-looking data that fluctuates slightly
   const base_pm25 = 22 + Math.sin(Date.now() / 60000) * 6;
-  const aqi = pm25ToAQI(base_pm25);
   return {
-    id: 1,
-    created_at: new Date().toISOString(),
-    pm1_0: +(base_pm25 * 0.55).toFixed(1),
-    pm2_5: +base_pm25.toFixed(1),
-    pm10:  +(base_pm25 * 1.8 + 5).toFixed(1),
-    co2:   Math.round(650 + Math.sin(Date.now() / 90000) * 200),
-    temperature: +(30.5 + Math.sin(Date.now() / 120000) * 2.5).toFixed(1),
-    humidity:    +(72 + Math.cos(Date.now() / 80000) * 8).toFixed(1),
-    aqi: Math.round(aqi),
-    lat, lng,
-    station_name: 'Trạm Đà Nẵng – Hải Châu',
+    id: 1, created_at: new Date().toISOString(),
+    pm1_0: +(base_pm25 * 0.55).toFixed(1), pm2_5: +base_pm25.toFixed(1), pm10: +(base_pm25 * 1.8 + 5).toFixed(1),
+    co2: 800, temperature: 30.5, humidity: 72, aqi: Math.round(pm25ToAQI(base_pm25)),
+    lat, lng, station_name: 'Trạm Đà Nẵng – Hải Châu',
   };
 }
 
-function buildSampleHistory(lat = DEFAULT_LAT, lng = DEFAULT_LNG): SensorReading[] {
-  const now = Date.now();
-  return Array.from({ length: 36 }, (_, i) => {
-    const t = new Date(now - (35 - i) * 30 * 60_000);
-    const hour = t.getHours();
-    // Simulate daily pattern: worse air quality during rush hours
-    const rushFactor = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19) ? 1.4 : 1;
-    const base = (18 + Math.sin(i / 5) * 10 + Math.random() * 4) * rushFactor;
-    return {
-      id: i,
-      created_at: t.toISOString(),
-      pm1_0: +(base * 0.55).toFixed(1),
-      pm2_5: +(base).toFixed(1),
-      pm10:  +(base * 1.8 + 5).toFixed(1),
-      co2:   Math.round(600 + Math.sin(i / 4) * 200 + Math.random() * 50),
-      temperature: +(29 + Math.sin(i / 8) * 3).toFixed(1),
-      humidity:    +(70 + Math.cos(i / 5) * 8).toFixed(1),
-      aqi: Math.round(pm25ToAQI(base)),
-      lat, lng,
-      station_name: 'Trạm Đà Nẵng – Hải Châu',
-    };
-  });
-}
-
 export default function Dashboard() {
-  const [nodes,       setNodes]       = useState<SensorReading[]>([]);
-  const [selectedName,setSelectedName]= useState<string | null>(null);
-  const [allHistory,  setAllHistory]  = useState<SensorReading[]>([]);
-  const [status,    setStatus]    = useState<'loading' | 'online' | 'offline'>('loading');
-  const [errMsg,    setErrMsg]    = useState('');
-  const [now,       setNow]       = useState('');
-  const [userPos,   setUserPos]   = useState<{ lat: number; lng: number } | null>(null);
-  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'granted' | 'denied'>('idle');
-  const [panTrigger, setPanTrigger] = useState(0);
+  const [nodes, setNodes] = useState<SensorReading[]>([]);
+  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [status, setStatus] = useState<'loading' | 'online' | 'offline'>('loading');
+  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [panTarget, setPanTarget] = useState<{ lat: number; lng: number; t: number } | null>(null);
+  const [isFullMap, setIsFullMap] = useState(false);
+  const [searchVal, setSearchVal] = useState('');
 
-  // Clock ticker
-  useEffect(() => {
-    const tick = () => setNow(new Date().toLocaleTimeString('vi-VN'));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, []);
+  // Auto-request geolocation on mount (disabled so map doesn't jump away from sensors unexpectedly)
+  // userPos is only requested via the search bar locate button now.
 
-  // Request user geolocation
-  const handleLocationClick = useCallback(() => {
-    if (!navigator.geolocation) {
-      setGeoStatus('denied');
+  const handleLocateClick = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setUserPos({ lat, lng });
+          setPanTarget({ lat, lng, t: Date.now() });
+        },
+        () => alert("Không thể lấy vị trí")
+      );
+    }
+  };
+
+  const handleSearchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchVal.trim()) return;
+
+    // Check if user inputs coordinates directly (e.g., "16.0544, 108.2022")
+    const coordRegex = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
+    if (coordRegex.test(searchVal)) {
+      const [latStr, lngStr] = searchVal.split(',');
+      setPanTarget({ lat: parseFloat(latStr), lng: parseFloat(lngStr), t: Date.now() });
       return;
     }
-    setGeoStatus('loading');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setGeoStatus('granted');
-        setPanTrigger(Date.now());
-      },
-      () => {
-        setGeoStatus('denied');
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-    );
-  }, []);
 
-  // Auto-request geolocation on mount
-  useEffect(() => {
-    handleLocationClick();
-  }, [handleLocationClick]);
+    // Call OSM Nominatim for Text Search
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(searchVal)}`);
+      const data = await res.json();
+      if (data && data.length > 0) {
+        setPanTarget({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), t: Date.now() });
+      } else {
+        alert("Không tìm thấy địa điểm này!");
+      }
+    } catch (err) {
+      alert("Lỗi khi tìm kiếm địa điểm.");
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
-      const [{ data: recentArr, error: e1 }, { data: histArr, error: e2 }] = await Promise.all([
-        supabase
-          .from('sensor_readings')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(300), // Get enough to extract unique active nodes
-        supabase
-          .from('sensor_readings')
-          .select('created_at, pm2_5, co2, aqi, station_name')
-          .order('created_at', { ascending: false })
-          .limit(200), // Larger limit to contain history for multiple stations
-      ]);
+      const { data: recentArr, error } = await supabase
+        .from('sensor_readings')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(300);
 
-      if (e1 || e2) throw new Error((e1 || e2)?.message);
-      
+      if (error) throw new Error(error.message);
+
       if (recentArr && recentArr.length > 0) {
-        // Group by distinct station string to find the latest for each unique station
         const nodesMap = new Map<string, SensorReading>();
         recentArr.forEach(r => {
           const key = r.station_name || 'Khác';
           if (!nodesMap.has(key)) nodesMap.set(key, r as SensorReading);
         });
         const newNodes = Array.from(nodesMap.values());
-        
         setNodes(newNodes);
-        setAllHistory((histArr ?? []) as SensorReading[]);
-        
-        // Ensure a selected name exists (default to the absolute latest one)
+
+        // If no node selected yet, auto select closest to User or the first one.
         setSelectedName(prev => {
           if (prev && nodesMap.has(prev)) return prev;
           return newNodes.length > 0 ? newNodes[0].station_name ?? null : null;
         });
 
         setStatus('online');
-        setErrMsg('');
       } else {
         const fall = buildSampleLatest();
         setNodes([fall]);
-        setAllHistory(buildSampleHistory());
         setSelectedName(fall.station_name ?? null);
         setStatus('online');
-        setErrMsg('');
       }
     } catch {
-      const fall = buildSampleLatest();
-      setNodes([fall]);
-      setAllHistory(buildSampleHistory());
-      setSelectedName(fall.station_name ?? null);
-      setStatus('online');
-      setErrMsg('');
+      setStatus('offline');
     }
   }, []);
 
@@ -168,160 +136,191 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, [fetchData]);
 
-  // Derived state based on selection
+  // When userPos changes or nodes load, find closest station
+  useEffect(() => {
+    if (userPos && nodes.length > 0) {
+      let closest = nodes[0];
+      let minD = Infinity;
+      nodes.forEach(n => {
+        const d = getDistanceKM(userPos.lat, userPos.lng, n.lat ?? 0, n.lng ?? 0);
+        if (d < minD) { minD = d; closest = n; }
+      });
+      setSelectedName(closest.station_name ?? null);
+    }
+  }, [userPos, nodes]);
+
+  // View calculations
   const latest = nodes.find(n => n.station_name === selectedName) || nodes[0] || null;
-  const history = allHistory.filter(h => (h.station_name || 'Khác') === (selectedName || 'Khác')).slice(0, HISTORY_LIMIT);
-
-  const aqi   = latest ? (latest.aqi ?? pm25ToAQI(latest.pm2_5 ?? 0)) : null;
+  const aqi = latest ? (latest.aqi ?? pm25ToAQI(latest.pm2_5 ?? 0)) : null;
   const level = aqi != null ? getAQILevel(aqi) : null;
-  const lastUpdated = latest
-    ? new Date(latest.created_at).toLocaleTimeString('vi-VN')
-    : '--';
-
-  // Health advice based on AQI (similar to aqi.in)
-  let healthAdvice = 'Không khí trong lành. Rất tốt cho sức khỏe.';
-  if (aqi && aqi > 50 && aqi <= 100) healthAdvice = 'Chất lượng không khí ở mức chấp nhận được. Những người nhạy cảm nên hạn chế hoạt động ngoài trời.';
-  else if (aqi && aqi > 100 && aqi <= 150) healthAdvice = 'Những người mắc bệnh hô hấp hoặc tim mạch nên giảm bớt các hoạt động mạnh ngoài trời.';
-  else if (aqi && aqi > 150 && aqi <= 200) healthAdvice = 'Tất cả mọi người có thể bắt đầu cảm thấy ảnh hưởng tới sức khỏe. Nhóm nhạy cảm có thể bị ảnh hưởng nghiêm trọng hơn.';
-  else if (aqi && aqi > 200 && aqi <= 300) healthAdvice = 'Cảnh báo sức khỏe khẩn cấp. Mọi người nên hạn chế tối đa các hoạt động ngoài trời.';
-  else if (aqi && aqi > 300) healthAdvice = 'Cảnh báo nguy hiểm. Mọi người nên ở trong nhà và đóng kín cửa sổ.';
+  const lastUpdated = latest ? new Date(latest.created_at).toLocaleString('vi-VN') : '--';
 
   return (
     <div className={styles.root}>
-      {/* ── Full-screen map background ── */}
-      <MapView 
-        nodes={nodes}
-        selectedNodeName={selectedName}
-        onSelectNode={setSelectedName}
-        userPos={userPos} 
-        panToUserTrigger={panTrigger} 
-      />
+      {/* ── Background Map ── */}
+      <div className={`${styles.mapWrapper} ${isFullMap ? styles.full : ''}`}>
+        <MapView
+          nodes={nodes}
+          selectedNodeName={selectedName}
+          onSelectNode={setSelectedName}
+          userPos={userPos}
+          panTarget={panTarget}
+        />
+        <button
+          className={styles.fullMapBtn}
+          onClick={() => setIsFullMap(!isFullMap)}
+        >
+          {isFullMap ? 'Thu nhỏ Map ◱' : 'AQI Map ⛶'}
+        </button>
+      </div>
 
-      {/* ── Top bar ── */}
-      <header className={`${styles.topBar} glass`} role="banner">
+      {/* ── Top Navbar ── */}
+      <header className={styles.topBar}>
         <div className={styles.brand}>
-          <div className={styles.brandPulse} />
-          <span className={styles.brandName}>🌬️ AirQ Monitor</span>
+          <span>AQI</span> AirQ
         </div>
 
-        <div className={styles.topCenter}>
-          <span className={`${styles.statusDot} ${styles[status]}`} />
-          <span className={styles.statusText}>
-            {status === 'loading' ? 'Đang kết nối…'
-             : status === 'online' ? 'Đang hoạt động'
-             : errMsg || 'Mất kết nối'}
-          </span>
-          <span className={styles.divider}>|</span>
-          <span className={styles.lastUpdate}>Cập nhật: {lastUpdated}</span>
-        </div>
+        <form className={styles.searchContainer} onSubmit={handleSearchSubmit}>
+          <svg className={styles.searchIcon} width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input
+            type="text"
+            className={styles.searchInput}
+            placeholder="Tìm kiếm kinh độ vĩ độ hoặc tên thành phố..."
+            value={searchVal}
+            onChange={(e) => setSearchVal(e.target.value)}
+          />
+          <button type="button" className={styles.searchLocateBtn} onClick={handleLocateClick} title="Vị trí của tôi">
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+          </button>
+        </form>
 
         <div className={styles.topRight}>
-          {/* Admin Dashboard Link */}
-          <a
-            href="/admin"
-            className={`${styles.geoBtn}`}
-            title="Trang quản trị (Admin Dashboard)"
-            style={{ textDecoration: 'none', marginRight: '8px' }}
-          >
-            <span style={{ fontSize: '1rem' }}>⚙️</span>
-          </a>
-
-          {/* Geolocation button */}
-          <button
-            className={`${styles.geoBtn} ${geoStatus === 'granted' ? styles.geoActive : ''}`}
-            onClick={handleLocationClick}
-            title={
-              geoStatus === 'granted' ? 'Xác định lại vị trí'
-              : geoStatus === 'denied' ? 'Quyền vị trí bị từ chối'
-              : 'Xác định vị trí của bạn'
-            }
-            aria-label="Xác định vị trí"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
-            </svg>
-            {geoStatus === 'loading' && <span className={styles.geoSpinner} />}
-          </button>
-          <span className={styles.clock}>{now}</span>
+          <a href="/admin" className={styles.adminBtn}>Quản trị viên</a>
         </div>
       </header>
 
-      {/* ── Side panel ── */}
-      <aside className={`${styles.panel} glass`} aria-label="Dashboard dữ liệu không khí">
+      {/* ── Center Floating Card ── */}
+      {latest && level && !isFullMap && (
+        <div className={styles.centerCard}>
+          <div className={styles.cardGradient} style={{ background: `linear-gradient(135deg, ${level.color}40 0%, rgba(30,35,45,0.95) 100%)` }}>
 
-        {/* Station info */}
-        <div className={styles.stationRow}>
-          <span className={styles.stationIcon}>📍</span>
-          <div className={styles.stationInfo}>
-            <div className={styles.stationName}>{latest?.station_name ?? 'Trạm đo'}</div>
-            <div className={styles.stationCoords}>
-              {(latest?.lat && latest?.lng)
-                ? `${(+latest.lat).toFixed(4)}, ${(+latest.lng).toFixed(4)}`
-                : '--'}
+            {/* Tabs */}
+            <div className={styles.cardTabs}>
+              <div className={`${styles.tabItem} ${styles.tabActive}`}>≚ AQI</div>
             </div>
-          </div>
-        </div>
 
-        {/* AQI Gauge */}
-        <AQIGauge aqi={aqi} />
-
-        {/* Health Advice */}
-        {level && (
-          <div className={styles.healthAdvice} style={{ borderColor: level.color + '55', background: level.color + '15' }}>
-            <div className={styles.healthTitle} style={{ color: level.color }}>Lời khuyên sức khỏe</div>
-            <div className={styles.healthText}>{healthAdvice}</div>
-          </div>
-        )}
-
-        {/* Metric cards */}
-        <div className={styles.grid}>
-          <MetricCard icon="💨" label="PM2.5" value={latest?.pm2_5 ?? null} unit="µg/m³" max={500} warnAt={35.4}  dangerAt={55.4} />
-          <MetricCard icon="🌫️" label="PM10"  value={latest?.pm10  ?? null} unit="µg/m³" max={600} warnAt={54}    dangerAt={154} />
-          <MetricCard icon="🔬" label="PM1.0" value={latest?.pm1_0 ?? null} unit="µg/m³" max={300} />
-          <MetricCard icon="🏭" label="CO₂"   value={latest?.co2   ?? null} unit="ppm"   max={5000} warnAt={1000} dangerAt={2000} decimals={0} />
-          <MetricCard icon="🌡️" label="Nhiệt độ" value={latest?.temperature ?? null} unit="°C"  max={50} half />
-          <MetricCard icon="💧" label="Độ ẩm"   value={latest?.humidity ?? null}    unit="%"   max={100} half />
-        </div>
-
-        {/* History chart */}
-        <HistoryChart data={history} />
-
-        {/* AQI legend */}
-        <div className={styles.legend}>
-          <div className={styles.legendTitle}>Thang AQI</div>
-          {[
-            { color: '#00e400', text: '0–50 Tốt' },
-            { color: '#e6e600', text: '51–100 Trung bình' },
-            { color: '#ff7e00', text: '101–150 Không tốt (nhạy cảm)' },
-            { color: '#ff0000', text: '151–200 Có hại' },
-            { color: '#8f3f97', text: '201–300 Rất có hại' },
-            { color: '#7e0023', text: '301+ Nguy hiểm' },
-          ].map(({ color, text }) => (
-            <div key={text} className={styles.legendRow}>
-              <span className={styles.ldot} style={{ background: color }} />
-              <span>{text}</span>
+            <div className={styles.cardHeaderRow}>
+              <div className={styles.cardHeaderLeft}>
+                <div className={styles.cardTitle}>Real-time Air Quality Index (AQI)</div>
+                <div className={styles.stationTitle}>
+                  {latest.station_name || 'Khác'}, {latest.lat?.toFixed(4)}, {latest.lng?.toFixed(4)}
+                </div>
+                <div className={styles.updatedAt}>
+                  Cập nhật lần cuối: {lastUpdated} <span style={{ margin: '0 6px' }}>|</span> Máy đo gần nhất: {getDistanceKM(userPos?.lat || 0, userPos?.lng || 0, latest.lat || 0, latest.lng || 0).toFixed(2)} km
+                </div>
+              </div>
+              <div className={styles.cardHeaderRight}>
+                <button className={`${styles.actionBtn} ${styles.locateBtn}`} onClick={handleLocateClick}>
+                  Locate me
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
 
-        {/* User location info */}
-        {userPos && (
-          <div className={styles.userLocation}>
-            <span className={styles.userLocIcon}>🧭</span>
-            <div className={styles.userLocInfo}>
-              <div className={styles.userLocLabel}>Vị trí của bạn</div>
-              <div className={styles.userLocCoords}>
-                {userPos.lat.toFixed(4)}, {userPos.lng.toFixed(4)}
+            <div className={styles.cardBody}>
+              {/* Left AQI Column */}
+              <div className={styles.leftColumn}>
+                <div className={styles.aqiSection}>
+                  <div className={styles.aqiBadge} style={{ background: level.color }}>
+                    <span className={styles.aqiNum}>{aqi}</span>
+                    <span className={styles.aqiLabel}>AQI (US)</span>
+                  </div>
+                  <div className={styles.aqiStatus}>
+                    Chất lượng không khí là
+                    <strong style={{ color: level.color }}>{level.label}</strong>
+                  </div>
+                </div>
+
+                <div className={styles.metricsBox}>
+                  <span>PM2.5: <strong>{latest.pm2_5} µg/m³</strong></span>
+                  <span>PM10: <strong>{latest.pm10} µg/m³</strong></span>
+                </div>
+
+                <div className={styles.aqiScaleContainer}>
+                  <div className={styles.scaleLabels}>
+                    <span>Tốt</span>
+                    <span>Vừa Phải</span>
+                    <span>Kém</span>
+                    <span>Xấu</span>
+                    <span>Rất Xấu</span>
+                    <span>Nguy Hiểm</span>
+                  </div>
+                  <div className={styles.scaleGradientBar}>
+                    <div className={styles.scalePointer} style={{ left: `${getAqiPointerPos(aqi)}%` }} />
+                  </div>
+                  <div className={styles.scaleTicks}>
+                    <span>0</span>
+                    <span>50</span>
+                    <span>100</span>
+                    <span>150</span>
+                    <span>200</span>
+                    <span>300</span>
+                    <span>301+</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Center Graphic */}
+              <div className={styles.cardGraphic}>
+                <div className={styles.graphicSun}></div>
+              </div>
+
+              {/* Right Weather Column */}
+              <div className={styles.weatherSection}>
+                <div className={styles.weatherItem}>
+                  <span className={styles.weatherLabel}>Nhiệt độ</span>
+                  <span className={styles.weatherValue}>{typeof latest.temperature === 'number' ? latest.temperature.toFixed(2) : latest.temperature}°C</span>
+                </div>
+                <div className={styles.weatherItem}>
+                  <span className={styles.weatherLabel}>Độ ẩm</span>
+                  <span className={styles.weatherValue}>{typeof latest.humidity === 'number' ? latest.humidity.toFixed(2) : latest.humidity}%</span>
+                </div>
+                <div className={styles.weatherItem}>
+                  <span className={styles.weatherLabel}>CO2</span>
+                  <span className={styles.weatherValue}>{latest.co2} ppm</span>
+                </div>
               </div>
             </div>
           </div>
-        )}
-      </aside>
+        </div>
+      )}
 
-      {/* Loading overlay */}
+      {/* ── Right Stations Table ── */}
+      <div className={styles.rightSidebar}>
+        <div className={styles.sidebarHeader}>Các trạm đo ({nodes.length})</div>
+        <div className={styles.list}>
+          {nodes.map(n => {
+            const dist = userPos && n.lat && n.lng ? getDistanceKM(userPos.lat, userPos.lng, n.lat, n.lng).toFixed(2) + ' km' : '';
+            const nAqi = n.aqi ?? pm25ToAQI(n.pm2_5 ?? 0);
+            const nLvl = getAQILevel(nAqi);
+            return (
+              <div
+                key={n.station_name}
+                className={`${styles.listItem} ${selectedName === n.station_name ? styles.active : ''}`}
+                onClick={() => { setSelectedName(n.station_name); setPanTarget({ lat: n.lat!, lng: n.lng!, t: Date.now() }); }}
+              >
+                <div className={styles.listName}>{n.station_name}</div>
+                {dist && <div className={styles.listDist}>{dist}</div>}
+                <div className={styles.listBadge} style={{ background: nLvl.color }}>
+                  {nAqi} AQI
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {status === 'loading' && (
-        <div className={styles.loadingOverlay} aria-live="polite">
+        <div className={styles.loadingOverlay}>
           <div className={styles.spinner} />
           <div className={styles.loadingText}>Đang tải dữ liệu…</div>
         </div>
