@@ -2,6 +2,7 @@
 #include <Adafruit_AHTX0.h>
 #include <Wire.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
@@ -10,7 +11,7 @@
 // ============================================================
 #define WIFI_SSID        "Tuan Thinh"
 #define WIFI_PASSWORD    "0906478818"
-#define SUPABASE_URL     "https://qwkaqgvopobfjshnbnpn.supabase.co  "
+#define SUPABASE_URL     "https://qwkaqgvopobfjshnbnpn.supabase.co"
 #define SUPABASE_KEY     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3a2FxZ3ZvcG9iZmpzaG5ibnBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NTQ5NjgsImV4cCI6MjA5MTIzMDk2OH0.ORUJ3KsBMC4A8YpjrKcnjO4NcT8hdia4pxwRIEUm6z8"
 #define STATION_NAME     "Station 1"
 #define STATION_LAT      16.0544      // Vĩ độ trạm đo
@@ -26,6 +27,8 @@ float g_pm1_0 = 0, g_pm2_5 = 0, g_pm10 = 0;
 int   g_co2   = 0;
 float g_temp  = 0, g_hum   = 0;
 unsigned long lastSendTime  = 0;
+bool aht_ok = false;
+bool isFirstSend = true;
 
 // ── Tính AQI từ PM2.5 (US EPA) ──────────────────────────────
 int calcAQI(float pm25) {
@@ -81,8 +84,11 @@ void sendToSupabase() {
   String payload;
   serializeJson(doc, payload);
 
+  WiFiClientSecure client;
+  client.setInsecure(); // Bỏ qua kiểm tra chứng chỉ SSL/TLS
+
   HTTPClient http;
-  http.begin(String(SUPABASE_URL) + "/rest/v1/sensor_readings");
+  http.begin(client, String(SUPABASE_URL) + "/rest/v1/sensor_readings");
   http.addHeader("Content-Type",  "application/json");
   http.addHeader("apikey",        SUPABASE_KEY);
   http.addHeader("Authorization", "Bearer " + String(SUPABASE_KEY));
@@ -106,8 +112,13 @@ void setup() {
   co2Serial.begin(9600, SERIAL_8N1, 33, 32);
   Wire.begin(21, 22);
 
-  if (!aht.begin()) Serial.println("[AHT] Lỗi: Không tìm thấy AHT40!");
-  else              Serial.println("[AHT] AHT40 OK");
+  if (!aht.begin()) {
+    Serial.println("[AHT] Lỗi: Không tìm thấy AHT40!");
+    aht_ok = false;
+  } else {
+    Serial.println("[AHT] AHT40 OK");
+    aht_ok = true;
+  }
 
   connectWiFi();
 }
@@ -141,15 +152,20 @@ void loop() {
   if (co2Serial.available()  > 64) while (co2Serial.available()) co2Serial.read();
 
   // ── Đọc AHT40 ──
-  sensors_event_t hum, temp;
-  aht.getEvent(&hum, &temp);
-  g_temp = temp.temperature;
-  g_hum  = hum.relative_humidity;
-  Serial.printf("[AHT] Temp=%.1f°C  Hum=%.1f%%\n", g_temp, g_hum);
+  static unsigned long lastAHT = 0;
+  if (aht_ok && (millis() - lastAHT >= 2000)) {
+    lastAHT = millis();
+    sensors_event_t hum, temp;
+    aht.getEvent(&hum, &temp);
+    g_temp = temp.temperature;
+    g_hum  = hum.relative_humidity;
+    Serial.printf("[AHT] Temp=%.1f°C  Hum=%.1f%%\n", g_temp, g_hum);
+  }
 
   // ── Gửi lên Supabase theo interval ──
-  if (millis() - lastSendTime >= SEND_INTERVAL) {
+  if (isFirstSend || millis() - lastSendTime >= SEND_INTERVAL) {
     lastSendTime = millis();
+    isFirstSend = false;
     sendToSupabase();
   }
 
