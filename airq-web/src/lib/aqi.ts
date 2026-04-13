@@ -56,4 +56,5 @@ export interface SensorReading {
   lat: number | null;
   lng: number | null;
   station_name: string | null;
+  tvoc: number | null;    // TVOC (ppb) — from SGP30 on Slave node
 }
