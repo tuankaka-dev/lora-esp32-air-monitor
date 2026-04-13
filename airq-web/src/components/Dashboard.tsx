@@ -288,6 +288,12 @@ export default function Dashboard() {
                   <span className={styles.weatherLabel}>CO2</span>
                   <span className={styles.weatherValue}>{latest.co2} ppm</span>
                 </div>
+                {latest.tvoc != null && (
+                  <div className={styles.weatherItem}>
+                    <span className={styles.weatherLabel}>TVOC</span>
+                    <span className={styles.weatherValue}>{latest.tvoc} ppb</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
