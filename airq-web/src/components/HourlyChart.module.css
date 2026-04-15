@@ -1,0 +1,114 @@
+.wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.titleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.subtitle {
+  font-size: 0.68rem;
+  color: #5a6577;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.tab {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #8892a4;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.tab:hover {
+  color: #e8eaf6;
+}
+
+.tab.active {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+}
+
+.chart {
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  padding: 12px 8px 6px;
+}
+
+.noData {
+  text-align: center;
+  padding: 32px 16px;
+  color: #5a6577;
+  font-size: 0.8rem;
+}
+
+.noDataIcon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* Tooltip */
+.tooltip {
+  background: rgba(5, 13, 26, 0.95);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 10px 14px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.ttTime {
+  font-size: 0.7rem;
+  color: #8892a4;
+  margin-bottom: 4px;
+}
+
+.ttValue {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.ttUnit {
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: #8892a4;
+  margin-left: 3px;
+}
+
+.ttLabel {
+  font-size: 0.65rem;
+  color: #5a6577;
+  margin-top: 2px;
+}

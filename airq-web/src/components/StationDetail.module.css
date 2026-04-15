@@ -1,0 +1,312 @@
+/* ── Full-map Station Detail Panel (right side) ── */
+.overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 420px;
+  height: 100vh;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.panel {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  bottom: 20px;
+  width: 380px;
+  background: rgba(10, 18, 32, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  overflow-y: auto;
+  pointer-events: all;
+  animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(60px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ── Header ── */
+.header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.headerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.stationName {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stationCoords {
+  font-size: 0.75rem;
+  color: #8892a4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stationTime {
+  font-size: 0.72rem;
+  color: #5a6577;
+  margin-top: 2px;
+}
+
+.closeBtn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8892a4;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.closeBtn:hover {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+}
+
+/* ── AQI Hero ── */
+.aqiHero {
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.aqiCircle {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #111;
+  flex-shrink: 0;
+  position: relative;
+  box-shadow: 0 0 24px rgba(0,0,0,0.3);
+}
+
+.aqiCircle::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid;
+  border-color: inherit;
+  opacity: 0.25;
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.3; }
+  50% { transform: scale(1.05); opacity: 0.1; }
+  100% { transform: scale(0.95); opacity: 0.3; }
+}
+
+.aqiNumber {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.aqiUnit {
+  font-size: 0.6rem;
+  font-weight: 700;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+.aqiMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aqiLevelLabel {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.aqiLevelDesc {
+  font-size: 0.78rem;
+  color: #8892a4;
+  line-height: 1.4;
+}
+
+/* ── Metrics Grid ── */
+.metricsSection {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.sectionLabel {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #5a6577;
+  margin-bottom: 12px;
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.metricCard {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: background 0.2s, border-color 0.2s;
+}
+.metricCard:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.1);
+}
+
+.metricIcon {
+  font-size: 1.2rem;
+}
+
+.metricName {
+  font-size: 0.72rem;
+  color: #8892a4;
+  font-weight: 500;
+}
+
+.metricValue {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.metricUnit {
+  font-size: 0.7rem;
+  color: #5a6577;
+  font-weight: 400;
+}
+
+/* ── Scale Bar ── */
+.scaleSection {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.scaleBar {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right,
+    #00e400 0%, #00e400 16.66%,
+    #e6e600 16.66%, #e6e600 33.33%,
+    #ff7e00 33.33%, #ff7e00 50%,
+    #ff0000 50%, #ff0000 66.66%,
+    #8f3f97 66.66%, #8f3f97 83.33%,
+    #7e0023 83.33%, #7e0023 100%
+  );
+  position: relative;
+  margin-top: 8px;
+  margin-bottom: 6px;
+}
+
+.scalePointer {
+  position: absolute;
+  top: -4px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border: 3px solid #222;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  transition: left 0.4s ease;
+}
+
+.scaleLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6rem;
+  color: #5a6577;
+}
+
+/* ── Signal Info ── */
+.signalSection {
+  padding: 16px 24px;
+}
+
+.signalRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.signalItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #8892a4;
+}
+
+.signalDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: blink 1.5s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.signalValue {
+  font-weight: 600;
+  color: #e8eaf6;
+}
+
+@media (max-width: 768px) {
+  .overlay {
+    width: 100%;
+  }
+  .panel {
+    width: calc(100% - 40px);
+    top: 70px;
+  }
+}
