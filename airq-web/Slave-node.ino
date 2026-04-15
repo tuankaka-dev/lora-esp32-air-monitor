@@ -18,7 +18,7 @@
 
 // ===== ID & Config =====
 #define SLAVE_ID    "SLAVE01"
-#define LED_PIN     2          // Onboard LED — blink khi respond
+#define LED_PIN     4          // LED — tránh xung đột với LORA_DIO0 (GPIO2)
 
 // ===== LoRa Pins (SX1278) =====
 #define LORA_SCK    18
