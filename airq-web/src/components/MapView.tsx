@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { SensorReading, getAQILevel, pm25ToAQI, fmt } from '@/lib/aqi';
@@ -27,6 +27,9 @@ export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos
   const mapRef = useRef<HTMLDivElement>(null);
   const mapLoaded = useRef(false);
   const circlesRef = useRef<Map<string, L.Circle>>(new Map());
+  // Use a ref to always have the latest onSelectNode callback
+  const onSelectNodeRef = useRef(onSelectNode);
+  onSelectNodeRef.current = onSelectNode;
 
   // Initialize Leaflet map once
   useEffect(() => {
@@ -103,8 +106,9 @@ export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos
           opacity: 0.6,
         }).addTo(mapInstance!);
         
+        // Use ref so click always calls the latest onSelectNode
         circle.on('click', () => {
-          onSelectNode(name);
+          onSelectNodeRef.current(name);
         });
         
         circlesRef.current.set(name, circle);
@@ -128,7 +132,7 @@ export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos
       circle.unbindPopup();
       circle.bindPopup(popupContent, { maxWidth: 280, className: 'airq-popup' });
     });
-  }, [nodes, onSelectNode]);
+  }, [nodes]);
 
   // Pan to selected node
   useEffect(() => {

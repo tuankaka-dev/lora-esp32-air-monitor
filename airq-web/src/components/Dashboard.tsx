@@ -8,6 +8,8 @@ import styles from './Dashboard.module.css';
 
 // Load MapView client-only (uses Leaflet / OpenStreetMap)
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
+const StationDetail = dynamic(() => import('@/components/StationDetail'), { ssr: false });
+const HourlyChart = dynamic(() => import('@/components/HourlyChart'), { ssr: false });
 
 const REFRESH_MS = 30_000;
 const DEFAULT_LAT = 16.0544;
@@ -37,21 +39,20 @@ function buildSampleLatest(lat = DEFAULT_LAT, lng = DEFAULT_LNG): SensorReading 
     id: 1, created_at: new Date().toISOString(),
     pm1_0: +(base_pm25 * 0.55).toFixed(1), pm2_5: +base_pm25.toFixed(1), pm10: +(base_pm25 * 1.8 + 5).toFixed(1),
     co2: 800, temperature: 30.5, humidity: 72, aqi: Math.round(pm25ToAQI(base_pm25)),
-    lat, lng, station_name: 'Trạm Đà Nẵng – Hải Châu',
+    lat, lng, station_name: 'Trạm Đà Nẵng – Hải Châu', tvoc: null,
   };
 }
 
 export default function Dashboard() {
   const [nodes, setNodes] = useState<SensorReading[]>([]);
+  const [history24h, setHistory24h] = useState<SensorReading[]>([]);
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading' | 'online' | 'offline'>('loading');
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const [panTarget, setPanTarget] = useState<{ lat: number; lng: number; t: number } | null>(null);
   const [isFullMap, setIsFullMap] = useState(false);
   const [searchVal, setSearchVal] = useState('');
-
-  // Auto-request geolocation on mount (disabled so map doesn't jump away from sensors unexpectedly)
-  // userPos is only requested via the search bar locate button now.
+  const [showDetail, setShowDetail] = useState(false);
 
   const handleLocateClick = () => {
     if (navigator.geolocation) {
@@ -88,13 +89,31 @@ export default function Dashboard() {
       } else {
         alert("Không tìm thấy địa điểm này!");
       }
-    } catch (err) {
+    } catch {
       alert("Lỗi khi tìm kiếm địa điểm.");
     }
   };
 
+  // Handle node selection — pan to node
+  const handleSelectNode = useCallback((name: string) => {
+    setSelectedName(name);
+    // Pan to the node
+    const node = nodes.find(n => n.station_name === name);
+    if (node && node.lat && node.lng) {
+      setPanTarget({ lat: node.lat, lng: node.lng, t: Date.now() });
+    }
+  }, [nodes]);
+
+  // Auto-open detail panel whenever a node is selected/changed in full-map mode
+  useEffect(() => {
+    if (isFullMap && selectedName) {
+      setShowDetail(true);
+    }
+  }, [selectedName, isFullMap]);
+
   const fetchData = useCallback(async () => {
     try {
+      // Fetch latest readings (for nodes list)
       const { data: recentArr, error } = await supabase
         .from('sensor_readings')
         .select('*')
@@ -124,6 +143,19 @@ export default function Dashboard() {
         setNodes([fall]);
         setSelectedName(fall.station_name ?? null);
         setStatus('online');
+      }
+
+      // Fetch 24h history for chart
+      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const { data: histData, error: histErr } = await supabase
+        .from('sensor_readings')
+        .select('*')
+        .gte('created_at', since)
+        .order('created_at', { ascending: true })
+        .limit(2000);
+
+      if (!histErr && histData) {
+        setHistory24h(histData as SensorReading[]);
       }
     } catch {
       setStatus('offline');
@@ -162,13 +194,13 @@ export default function Dashboard() {
         <MapView
           nodes={nodes}
           selectedNodeName={selectedName}
-          onSelectNode={setSelectedName}
+          onSelectNode={handleSelectNode}
           userPos={userPos}
           panTarget={panTarget}
         />
         <button
           className={styles.fullMapBtn}
-          onClick={() => setIsFullMap(!isFullMap)}
+          onClick={() => { setIsFullMap(!isFullMap); if (isFullMap) setShowDetail(false); }}
         >
           {isFullMap ? 'Thu nhỏ Map ◱' : 'AQI Map ⛶'}
         </button>
@@ -199,7 +231,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* ── Center Floating Card ── */}
+      {/* ── Center Floating Card (non-full-map mode) ── */}
       {latest && level && !isFullMap && (
         <div className={styles.centerCard}>
           <div className={styles.cardGradient} style={{ background: `linear-gradient(135deg, ${level.color}40 0%, rgba(30,35,45,0.95) 100%)` }}>
@@ -297,33 +329,45 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+          {/* ── 24h Chart Section below hero ── */}
+          <div className={styles.chartSection}>
+            <HourlyChart history={history24h} stationName={selectedName} />
+          </div>
         </div>
       )}
 
+      {/* ── Full Map Mode: Station Detail Panel ── */}
+      {isFullMap && showDetail && latest && (
+        <StationDetail node={latest} onClose={() => setShowDetail(false)} />
+      )}
+
       {/* ── Right Stations Table ── */}
-      <div className={styles.rightSidebar}>
-        <div className={styles.sidebarHeader}>Các trạm đo ({nodes.length})</div>
-        <div className={styles.list}>
-          {nodes.map(n => {
-            const dist = userPos && n.lat && n.lng ? getDistanceKM(userPos.lat, userPos.lng, n.lat, n.lng).toFixed(2) + ' km' : '';
-            const nAqi = n.aqi ?? pm25ToAQI(n.pm2_5 ?? 0);
-            const nLvl = getAQILevel(nAqi);
-            return (
-              <div
-                key={n.station_name}
-                className={`${styles.listItem} ${selectedName === n.station_name ? styles.active : ''}`}
-                onClick={() => { setSelectedName(n.station_name); setPanTarget({ lat: n.lat!, lng: n.lng!, t: Date.now() }); }}
-              >
-                <div className={styles.listName}>{n.station_name}</div>
-                {dist && <div className={styles.listDist}>{dist}</div>}
-                <div className={styles.listBadge} style={{ background: nLvl.color }}>
-                  {nAqi} AQI
+      {!showDetail && (
+        <div className={styles.rightSidebar}>
+          <div className={styles.sidebarHeader}>Các trạm đo ({nodes.length})</div>
+          <div className={styles.list}>
+            {nodes.map(n => {
+              const dist = userPos && n.lat && n.lng ? getDistanceKM(userPos.lat, userPos.lng, n.lat, n.lng).toFixed(2) + ' km' : '';
+              const nAqi = n.aqi ?? pm25ToAQI(n.pm2_5 ?? 0);
+              const nLvl = getAQILevel(nAqi);
+              return (
+                <div
+                  key={n.station_name}
+                  className={`${styles.listItem} ${selectedName === n.station_name ? styles.active : ''}`}
+                  onClick={() => { handleSelectNode(n.station_name!); }}
+                >
+                  <div className={styles.listName}>{n.station_name}</div>
+                  {dist && <div className={styles.listDist}>{dist}</div>}
+                  <div className={styles.listBadge} style={{ background: nLvl.color }}>
+                    {nAqi} AQI
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {status === 'loading' && (
         <div className={styles.loadingOverlay}>

@@ -155,13 +155,15 @@
   transform: translate(-50%, -50%);
   z-index: 10;
   width: 90%;
-  max-width: 800px;
+  max-width: 900px;
+  max-height: 80vh;
   background: rgba(20, 25, 35, 0.85);
   backdrop-filter: blur(16px);
   border-radius: 24px;
   border: 1px solid rgba(255,255,255,0.1);
   box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -387,6 +389,58 @@
   color: #fff;
 }
 
+/* ── 24h Chart Section below hero card ── */
+.chartSection {
+  padding: 20px 32px 24px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  background: rgba(15, 20, 30, 0.6);
+}
+
+/* ── Card Header Row ── */
+.cardTabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tabItem {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #8892a4;
+  padding: 4px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.tabItem.tabActive {
+  color: #3ca2ff;
+  background: rgba(60, 162, 255, 0.1);
+}
+
+.cardHeaderRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cardHeaderLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cardHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cardGraphic {
+  display: none;
+}
+
 
 /* ── Right Sidebar / Table ────────────────────────────────────── */
 .rightSidebar {
@@ -507,5 +561,8 @@
   .fullMapBtn {
     top: 80px;
     right: 20px;
+  }
+  .chartSection {
+    padding: 16px 20px;
   }
 }
