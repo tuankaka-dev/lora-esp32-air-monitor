@@ -118,7 +118,7 @@ export default function Dashboard() {
         .from('sensor_readings')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(300);
+        .limit(2500);
 
       if (error) throw new Error(error.message);
 
@@ -287,7 +287,7 @@ export default function Dashboard() {
                     <span>Nguy Hiểm</span>
                   </div>
                   <div className={styles.scaleGradientBar}>
-                    <div className={styles.scalePointer} style={{ left: `${getAqiPointerPos(aqi)}%` }} />
+                    <div className={styles.scalePointer} style={{ left: `${getAqiPointerPos(aqi ?? 0)}%` }} />
                   </div>
                   <div className={styles.scaleTicks}>
                     <span>0</span>
@@ -343,7 +343,7 @@ export default function Dashboard() {
       )}
 
       {/* ── Right Stations Table ── */}
-      {!showDetail && (
+      {isFullMap && !showDetail && (
         <div className={styles.rightSidebar}>
           <div className={styles.sidebarHeader}>Các trạm đo ({nodes.length})</div>
           <div className={styles.list}>
