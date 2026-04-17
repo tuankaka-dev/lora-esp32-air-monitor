@@ -58,3 +58,46 @@ export interface SensorReading {
   station_name: string | null;
   tvoc: number | null;    // TVOC (ppb) — from SGP30 on Slave node
 }
+
+// Continuous AQI → RGB gradient for IDW heatmap rendering
+// EPA breakpoint colors + intermediate stops để chuyển tiếp mượt mà
+// Interpolates smoothly without flat buckets
+const AQI_COLOR_STOPS: [number, number, number, number][] = [
+  // aqi,   R,   G,   B
+  [  0,   0, 228,   0],  // 0: Bright Green
+  [ 25,  64, 240,   0],  // 25: Light Green (intermediate)
+  [ 50, 230, 230,   0],  // 50: Yellow
+  [ 75, 245, 177,   0],  // 75: Yellow-Orange (intermediate)
+  [100, 255, 126,   0],  // 100: Orange
+  [125, 255,  63,   0],  // 125: Orange-Red (intermediate)
+  [150, 255,   0,   0],  // 150: Red
+  [175, 200,   0,  80],  // 175: Red-Purple (intermediate)
+  [200, 143,  63, 151],  // 200: Purple
+  [250, 135,  35,  93],  // 250: Purple-Maroon (intermediate)
+  [300, 126,   0,  35],  // 300: Maroon
+  [500, 126,   0,  35],  // 500: Maroon
+];
+
+export function aqiToRGB(aqi: number): [number, number, number] {
+  if (aqi <= 0) return [AQI_COLOR_STOPS[0][1], AQI_COLOR_STOPS[0][2], AQI_COLOR_STOPS[0][3]];
+  if (aqi >= 500) {
+    const last = AQI_COLOR_STOPS[AQI_COLOR_STOPS.length - 1];
+    return [last[1], last[2], last[3]];
+  }
+
+  for (let i = 0; i < AQI_COLOR_STOPS.length - 1; i++) {
+    const [a0, r0, g0, b0] = AQI_COLOR_STOPS[i];
+    const [a1, r1, g1, b1] = AQI_COLOR_STOPS[i + 1];
+    if (aqi >= a0 && aqi <= a1) {
+      // Smooth interpolation: f(t) = 3*t^2 - 2*t^3 (smoother than linear)
+      const t = a1 === a0 ? 0 : (aqi - a0) / (a1 - a0);
+      const st = t * t * (3 - 2 * t); // Smoothstep interpolation
+      return [
+        Math.round(r0 + (r1 - r0) * st),
+        Math.round(g0 + (g1 - g0) * st),
+        Math.round(b0 + (b1 - b0) * st),
+      ];
+    }
+  }
+  return [126, 0, 35];
+}
