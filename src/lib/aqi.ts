@@ -57,6 +57,7 @@ export interface SensorReading {
   lng: number | null;
   station_name: string | null;
   tvoc: number | null;    // TVOC (ppb) — from SGP30 on Slave node
+  alert: string | null;   // TinyML classification label from Master/Slave
 }
 
 // Continuous AQI → RGB gradient for IDW heatmap rendering
