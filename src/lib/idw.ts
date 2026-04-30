@@ -43,7 +43,7 @@ export function computeTileIDW(
   power: number = 2.0,
   maxInfluenceKm: number = 150,     // Bán kính lớn để các node giao lưu, nhưng không tràn ngập toàn cầu
   cellSize: number = 4,             // 4px cho hiệu suất cực mượt
-  baseOpacity: number = 0.8,
+  baseOpacity: number = 0.5,
   smoothingKm?: number,             // Mặc định = maxInfluenceKm * 0.3 (tự scale theo influence)
 ): ImageData {
   // smoothingKm phải < maxInfluenceKm, mặc định 30% bán kính để tránh triệt tiêu weight
@@ -82,10 +82,10 @@ export function computeTileIDW(
         sumAqi += weight * nodes[i].aqi;
 
         // Tính mật độ (density) để quyết định Opacity
-        // Ở gần node (d=0) thì mật độ cao (~1). Out khỏi maxInfluence thì mật độ = 0.
-        // Smoothstep: giảm mượt mà từ 1 về 0.
+        // (1-x²)²: giữ đậm ở tâm rất lâu, mờ dần phân tầng rõ ràng ra rìa
         const x = d / maxInfluenceKm;
-        const den = 1.0 - (x * x * (3 - 2 * x));
+        const q = 1.0 - x * x;
+        const den = q * q; // Quartic ease-out: phân tầng mượt mà
         sumDensity += den;
       }
 
@@ -95,12 +95,9 @@ export function computeTileIDW(
       const aqi = sumAqi / sumWeight;
       const [r, g, b] = aqiToRGB(aqi);
 
-      // Khi đứng ở giữa 2 node, sumDensity sẽ được cộn dồn từ cả 2 phía.
-      // Điều này TRÁNH được hiện tượng bớt mờ (vùng đen) ở đoạn giữa.
-      // Hệ số 1.5 giúp các vùng giao thoa giữa các node duy trì sự đông đặc (solid layer),
-      // trong khi bề mặt ngoài cùng vẫn fade out cực mượt.
-      const opacityFactor = Math.min(1.0, sumDensity * 1.5);
-      
+      // Không nhân 1.5 nữa để giữ được độ dốc màu (gradient) hoàn hảo từ tâm node nhạt dần ra rìa.
+      const opacityFactor = Math.min(1.0, sumDensity);
+
       const alpha = Math.round(baseOpacity * opacityFactor * 255);
       if (alpha <= 0) continue;
 

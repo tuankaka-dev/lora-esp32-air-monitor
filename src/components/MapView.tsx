@@ -19,8 +19,8 @@ let mapInstance: L.Map | null = null;
 let userMarker: L.CircleMarker | null = null;
 let userAccuracyCircle: L.Circle | null = null;
 
-const DARK_NOLABELS_URL = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
-const DARK_ONLY_LABELS_URL = 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png';
+const LIGHT_NOLABELS_URL = 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png';
+const LIGHT_ONLY_LABELS_URL = 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png';
 const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>';
 
 const DEFAULT_CENTER: L.LatLngExpression = [16.0544, 108.2022];
@@ -29,7 +29,7 @@ const DEFAULT_CENTER: L.LatLngExpression = [16.0544, 108.2022];
 const IDW_POWER = 2.0;             // p=2.0 (chuẩn)
 const IDW_MAX_INFLUENCE_KM = 2;    // 4km: phù hợp 15 trạm tập trung trong Đà Nẵng
 const IDW_CELL_SIZE = 2;           // 4px: hiệu suất cực nhanh, phù hợp smooth IDW
-const IDW_OPACITY = 0.45;          // Giảm độ đục để màu sắc dịu nhẹ, hài hòa hơn
+const IDW_OPACITY = 0.55;          // Giảm độ đục để màu sắc dịu nhẹ, hài hòa hơn
 
 // ── Create IDW GridLayer class ──
 function createIDWLayer(nodesRef: React.MutableRefObject<IDWNode[]>) {
@@ -107,7 +107,7 @@ export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos
     });
 
     // 1. Add background map (no labels) at bottom
-    L.tileLayer(DARK_NOLABELS_URL, {
+    L.tileLayer(LIGHT_NOLABELS_URL, {
       attribution: TILE_ATTRIBUTION,
       maxZoom: 19,
       subdomains: 'abcd',
@@ -126,7 +126,7 @@ export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos
     mapInstance.getPane('labelsPane')!.style.pointerEvents = 'none'; // Không cản trở click trên map
 
     // 4. Add labels map on top
-    L.tileLayer(DARK_ONLY_LABELS_URL, {
+    L.tileLayer(LIGHT_ONLY_LABELS_URL, {
       maxZoom: 19,
       subdomains: 'abcd',
       pane: 'labelsPane',
@@ -238,6 +238,27 @@ export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos
         marker.setIcon(divIcon);
       }
 
+      // ── Alert từ TinyML (nhãn: FIRE, High_co2, NORMAL, Traffic) ──
+      const rawAlert = (d as Record<string, unknown>).alert as string | null;
+      const alertInfo: Record<string, { icon: string; text: string; color: string }> = {
+        'NORMAL': { icon: '✅', text: 'Bình thường', color: '#00e400' },
+        'HIGH_CO2': { icon: '🏭', text: 'CO₂ cao', color: '#ff7e00' },
+        'FIRE': { icon: '🔥', text: 'Cháy', color: '#ff0000' },
+        'TRAFFIC': { icon: '🚗', text: 'Giao thông ô nhiễm', color: '#e6e600' },
+      };
+      const alertKey = rawAlert ? rawAlert.toUpperCase() : null;
+      const aInfo = alertKey && alertInfo[alertKey]
+        ? alertInfo[alertKey]
+        : rawAlert
+          ? { icon: '⚠️', text: rawAlert, color: '#e6e600' }
+          : null;
+
+      const alertRow = aInfo
+        ? `<span style="color:#8892a4">TinyML</span>
+           <strong style="color:${aInfo.color}">${aInfo.icon} ${aInfo.text}</strong>`
+        : `<span style="color:#8892a4">TinyML</span>
+           <span style="color:#555">— chưa có dữ liệu</span>`;
+
       const popupContent = `
         <div style="font-family:Inter,sans-serif;padding:6px 2px;min-width:200px;color:#e8eaf6">
           <div style="font-weight:700;font-size:0.95rem;margin-bottom:6px;color:#fff">${name}</div>
@@ -245,6 +266,7 @@ export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos
           <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:0.8rem">
             <span style="color:#8892a4">AQI</span>
             <strong style="color:${lvl.color}">${aqi} – ${lvl.label}</strong>
+            ${alertRow}
             <span style="color:#8892a4">PM2.5</span><span>${fmt(d.pm2_5)} µg/m³</span>
             <span style="color:#8892a4">Nhiệt độ</span><span>${fmt(d.temperature)}°C</span>
             <span style="color:#8892a4">Độ ẩm</span><span>${fmt(d.humidity)}%</span>

@@ -39,7 +39,7 @@ function buildSampleLatest(lat = DEFAULT_LAT, lng = DEFAULT_LNG): SensorReading 
     id: 1, created_at: new Date().toISOString(),
     pm1_0: +(base_pm25 * 0.55).toFixed(1), pm2_5: +base_pm25.toFixed(1), pm10: +(base_pm25 * 1.8 + 5).toFixed(1),
     co2: 800, temperature: 30.5, humidity: 72, aqi: Math.round(pm25ToAQI(base_pm25)),
-    lat, lng, station_name: 'Trạm Đà Nẵng – Hải Châu', tvoc: null,
+    lat, lng, station_name: 'Trạm Đà Nẵng – Hải Châu', tvoc: null, alert: null,
   };
 }
 
@@ -128,6 +128,40 @@ export default function Dashboard() {
           const key = r.station_name || 'Khác';
           if (!nodesMap.has(key)) nodesMap.set(key, r as SensorReading);
         });
+
+        // ── Gom alert TinyML 30s gần nhất: đếm tần suất, chọn alert nhiều nhất ──
+        const cutoff = Date.now() - 30_000;
+        const alertFreqMap = new Map<string, Map<string, number>>(); // station → { label → count }
+
+        for (const r of recentArr) {
+          const station = r.station_name || 'Khác';
+          const alertVal = r.alert as string | null;
+          if (!alertVal) continue;
+          const recTime = new Date(r.created_at).getTime();
+          if (recTime < cutoff) continue;
+
+          if (!alertFreqMap.has(station)) alertFreqMap.set(station, new Map());
+          const freq = alertFreqMap.get(station)!;
+          freq.set(alertVal, (freq.get(alertVal) || 0) + 1);
+        }
+
+        // Gán alert có tần suất cao nhất vào mỗi node
+        for (const [station, node] of nodesMap) {
+          const freq = alertFreqMap.get(station);
+          if (!freq || freq.size === 0) continue;
+          let bestLabel = '';
+          let bestCount = 0;
+          for (const [label, count] of freq) {
+            if (count > bestCount) {
+              bestCount = count;
+              bestLabel = label;
+            }
+          }
+          if (bestLabel) {
+            (node as Record<string, unknown>).alert = bestLabel;
+          }
+        }
+
         const newNodes = Array.from(nodesMap.values());
         setNodes(newNodes);
 
