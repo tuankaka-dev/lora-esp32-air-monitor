@@ -16,6 +16,7 @@
 #include <Adafruit_AHTX0.h>
 #include <PMS.h>
 #include <tuankaka-dev-project-1_inferencing.h>
+#include <esp_system.h>
 
 // ===== ID & Config =====
 #define SLAVE_ID    "SLAVE01"
@@ -35,7 +36,7 @@ const long LORA_FREQ = 433E6;
 #define LORA_SF         7       // Spreading Factor
 #define LORA_BW         125E3   // Signal Bandwidth (Hz)
 #define LORA_CR         5       // Coding Rate denominator (4/5)
-#define LORA_TX_POWER   12       // dBm (giảm cực thấp (2) để tránh IC nguồn đã yếu bị sập)
+#define LORA_TX_POWER   12       // dBm (giảm cực thấp để tránh brownout/reset khi TX)
 #define LORA_SYNC_WORD  0xF3    // Private network sync word
 
 // ===== Sensors =====
@@ -52,13 +53,9 @@ uint16_t pm1  = 0, pm25 = 0, pm10 = 0;
 uint16_t tvoc = 0, eco2 = 0;
 float    temp = 0.0, hum = 0.0;
 
-// ===== Timing =====
-unsigned long lastSGP   = 0;
-unsigned long lastAHT   = 0;
-unsigned long lastDebug = 0;
-
 // ===== TinyML Alert =====
 String g_alert = "Normal";  // kết quả inference mới nhất
+unsigned long g_alert_ts = 0; // millis() timestamp of last inference
 
 // ===== LoRa Custom Polling =====
 uint8_t readLoRaIRQ() {
@@ -76,6 +73,7 @@ uint8_t readLoRaIRQ() {
 // Model INT8 compiled cần nhiều stack hơn → crash nếu chạy trực tiếp.
 static SemaphoreHandle_t  inferSem   = NULL;   // Trigger: yêu cầu chạy inference
 static SemaphoreHandle_t  inferDone  = NULL;   // Signal: inference xong
+static SemaphoreHandle_t  inferMutex = NULL;   // Guard: chỉ 1 inference tại 1 thời điểm
 static float  inferBuffer[EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE]; // shared buffer
 static String inferResult = "Normal";          // shared result
 
@@ -144,6 +142,11 @@ void inferenceTask(void* param) {
 
 // ── Wrapper: gọi từ loop(), trigger task rồi chờ kết quả ────
 String runAlert() {
+  // Tránh gọi inference đồng thời từ nhiều task
+  if (inferMutex != NULL) {
+    xSemaphoreTake(inferMutex, portMAX_DELAY);
+  }
+
   // Nạp sensor data vào shared buffer
   inferBuffer[0] = (float)pm1;
   inferBuffer[1] = (float)pm25;
@@ -158,9 +161,17 @@ String runAlert() {
 
   // Chờ kết quả (timeout 5s — inference thường < 200ms)
   if (xSemaphoreTake(inferDone, pdMS_TO_TICKS(5000)) == pdTRUE) {
-    return inferResult;
+    String result = inferResult;
+    g_alert_ts = millis();
+    if (inferMutex != NULL) {
+      xSemaphoreGive(inferMutex);
+    }
+    return result;
   } else {
     Serial.println("[TinyML] TIMEOUT — inference task không phản hồi");
+    if (inferMutex != NULL) {
+      xSemaphoreGive(inferMutex);
+    }
     return "Error";
   }
 }
@@ -187,16 +198,11 @@ String buildResponse() {
 }
 
 // ── Handle incoming LoRa request ────────────────────────────
-void handleLoRaRequest() {
-  int packetSize = LoRa.parsePacket(); // Xử lý cờ IRQ và đọc payload
-  if (packetSize == 0) {
-    LoRa.receive(); // Lỗi CRC, Đảm bảo luôn quay lại Continuous RX
-    return;
-  }
+void handleLoRaPacket(int packetSize) {
 
   // Read incoming packet
   String incoming = "";
-  while (LoRa.available()) {
+  while (LoRa.available() && packetSize-- > 0) {
     incoming += (char)LoRa.read();
   }
   incoming.trim();
@@ -221,12 +227,12 @@ void handleLoRaRequest() {
   String response = buildResponse();
 
   // Small delay to let Master switch to RX mode
-  delay(50);
+  delay(200);
 
   LoRa.beginPacket();
   LoRa.print(response);
-  LoRa.endPacket(true); // async mode
-  delay(150);           // Chờ TX hoàn tất
+  LoRa.endPacket(false); // sync mode
+  delay(20);             // Chờ radio ổn định trước khi RX lại
 
   // Blink LED
   digitalWrite(LED_PIN, HIGH);
@@ -240,9 +246,165 @@ void handleLoRaRequest() {
 }
 
 // ═════════════════════════════════════════════════════════════
+//  FreeRTOS Tasks — DUAL-CORE ARCHITECTURE
+// ═════════════════════════════════════════════════════════════
+//  CORE 1 — SENSOR I/O
+// ═════════════════════════════════════════════════════════════
+
+void taskPMS(void* param) {
+  Serial.println("[PMS Task] Core 1, Priority 3 — UART read");
+
+  // Flush buffer rác ban đầu
+  while (Serial2.available()) Serial2.read();
+
+  // State machine đọc frame PMS7003
+  enum { PMS_HEADER1, PMS_HEADER2, PMS_DATA } state = PMS_HEADER1;
+  byte buf[30];
+  int  bufIdx = 0;
+
+  unsigned long lastGoodFrame = millis();
+  unsigned long lastLogTime   = 0;
+
+  for (;;) {
+    // Watchdog: 30s không có frame → reset UART
+    if (millis() - lastGoodFrame > 30000) {
+      Serial.println("[PMS] ⚠ 30s không có frame — RESET UART");
+      Serial2.end();
+      vTaskDelay(pdMS_TO_TICKS(300));
+      Serial2.setRxBufferSize(1024);
+      Serial2.begin(9600, SERIAL_8N1, 16, 17);
+      vTaskDelay(pdMS_TO_TICKS(1000));
+      while (Serial2.available()) Serial2.read();
+      state = PMS_HEADER1;
+      bufIdx = 0;
+      lastGoodFrame = millis();
+      continue;
+    }
+
+    int processed = 0;
+    while (Serial2.available() > 0 && processed < 128) {
+      byte b = Serial2.read();
+      processed++;
+
+      switch (state) {
+        case PMS_HEADER1:
+          if (b == 0x42) state = PMS_HEADER2;
+          break;
+
+        case PMS_HEADER2:
+          if (b == 0x4D) {
+            state = PMS_DATA;
+            bufIdx = 0;
+          } else if (b == 0x42) {
+            // Có thể là header mới
+          } else {
+            state = PMS_HEADER1;
+          }
+          break;
+
+        case PMS_DATA:
+          buf[bufIdx++] = b;
+          if (bufIdx >= 30) {
+            uint16_t checksum = 0x42 + 0x4D;
+            for (int i = 0; i < 28; i++) checksum += buf[i];
+            uint16_t rxCheck = (buf[28] << 8) | buf[29];
+
+            if (checksum == rxCheck) {
+              pm1  = (buf[8]  << 8) | buf[9];
+              pm25 = (buf[10] << 8) | buf[11];
+              pm10 = (buf[12] << 8) | buf[13];
+              lastGoodFrame = millis();
+
+              if (millis() - lastLogTime > 5000) {
+                lastLogTime = millis();
+                Serial.printf("[PMS] PM1.0=%u  PM2.5=%u  PM10=%u µg/m³  ✓\n",
+                              pm1, pm25, pm10);
+              }
+            }
+            state = PMS_HEADER1;
+            bufIdx = 0;
+          }
+          break;
+      }
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(5));
+  }
+}
+
+void taskSGP(void* param) {
+  Serial.println("[SGP Task] Core 1, Priority 2 — 1s cycle");
+  int warmupLeft = 15;
+
+  for (;;) {
+    if (sgp_ok) {
+      if (sgp.IAQmeasure()) {
+        if (warmupLeft > 0) {
+          warmupLeft--;
+          if (warmupLeft == 0) {
+            Serial.println("[SGP30] Warm-up done");
+          }
+        } else {
+          tvoc = sgp.TVOC;
+          eco2 = sgp.eCO2;
+        }
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+}
+
+void taskAHT(void* param) {
+  Serial.println("[AHT Task] Core 1, Priority 1 — 2s cycle");
+
+  for (;;) {
+    if (aht_ok) {
+      sensors_event_t h, t;
+      aht.getEvent(&h, &t);
+      temp = t.temperature;
+      hum  = h.relative_humidity;
+    }
+    vTaskDelay(pdMS_TO_TICKS(2000));
+  }
+}
+
+// ═════════════════════════════════════════════════════════════
+//  CORE 0 — LoRa + Debug
+// ═════════════════════════════════════════════════════════════
+
+void taskLoRa(void* param) {
+  Serial.println("[LoRa Task] Core 0, Priority 1 — RX polling");
+
+  for (;;) {
+    int packetSize = LoRa.parsePacket();
+    if (packetSize > 0) {
+      handleLoRaPacket(packetSize);
+    }
+    vTaskDelay(pdMS_TO_TICKS(2));
+  }
+}
+
+void taskDebug(void* param) {
+  Serial.println("[Debug Task] Core 0, Priority 1 — 10s log");
+
+  for (;;) {
+    Serial.println("─── Slave Sensor Status ───");
+    Serial.printf("  PM1.0=%u  PM2.5=%u  PM10=%u µg/m³\n", pm1, pm25, pm10);
+    Serial.printf("  TVOC=%u ppb  eCO2=%u ppm\n", tvoc, eco2);
+    Serial.printf("  Temp=%.1f°C  Hum=%.1f%%\n", temp, hum);
+
+    Serial.printf("  Alert=%s  (ts=%lus)\n", g_alert.c_str(), g_alert_ts / 1000UL);
+    Serial.println("  [Listening for Master...]\n");
+
+    vTaskDelay(pdMS_TO_TICKS(10000));
+  }
+}
+
+// ═════════════════════════════════════════════════════════════
 void setup() {
   Serial.begin(115200);
   delay(1000);
+  Serial.printf("[Reset] reason=%d\n", (int)esp_reset_reason());
   Serial.println("\n=== SLAVE NODE — Air Quality Monitor ===");
   Serial.printf("    ID: %s\n", SLAVE_ID);
   Serial.printf("    Free Heap: %u bytes (min: %u)\n", ESP.getFreeHeap(), ESP.getMinFreeHeap());
@@ -269,8 +431,9 @@ void setup() {
   }
 
   // ── UART: PMS7003
-  Serial2.begin(9600, SERIAL_8N1, 17, 16);
-  Serial.println("[PMS7003] UART2 OK  (RX=17, TX=16)");
+  Serial2.setRxBufferSize(1024);
+  Serial2.begin(9600, SERIAL_8N1, 16, 17);
+  Serial.println("[PMS7003] UART2 OK  (RX=16, TX=17)");
 
   // ── LoRa SX1278 ──
   // ★ BƯỚC 1: Hardware reset SX1278 TRƯỚC KHI init SPI
@@ -307,19 +470,12 @@ void setup() {
   Serial.printf("[LoRa] OK  Freq=%.0fMHz  SF=%d  BW=%.0fkHz  CR=4/%d  TxPwr=%ddBm\n",
                 LORA_FREQ / 1E6, LORA_SF, LORA_BW / 1E3, LORA_CR, LORA_TX_POWER);
 
-  // Warm-up SGP30 (cần ~15s để baseline ổn định)
-  if (sgp_ok) {
-    Serial.println("[SGP30] Warm-up 15s...");
-    for (int i = 0; i < 15; i++) {
-      sgp.IAQmeasure();
-      delay(1000);
-    }
-    Serial.println("[SGP30] Warm-up done");
-  }
+  // SGP30 warm-up chuyển sang taskSGP để giảm spike khi boot
 
   // ── Khởi tạo FreeRTOS inference task ──
   inferSem  = xSemaphoreCreateBinary();
   inferDone = xSemaphoreCreateBinary();
+  inferMutex = xSemaphoreCreateMutex();
 
   xTaskCreatePinnedToCore(
     inferenceTask,    // function
@@ -334,61 +490,27 @@ void setup() {
   // Đưa vào chế độ Continuous RX ban đầu
   LoRa.receive();
 
-  Serial.println("=== SLAVE READY — Listening for Master ===\n");
+  // ── Tạo FreeRTOS Tasks — Dual-Core Architecture ──
+  BaseType_t r1, r2, r3, r4, r5;
+
+  r1 = xTaskCreatePinnedToCore(taskPMS,  "PMS7003", 4096, NULL, 3, NULL, 1);
+  r2 = xTaskCreatePinnedToCore(taskSGP,  "SGP30",  4096, NULL, 2, NULL, 1);
+  r3 = xTaskCreatePinnedToCore(taskAHT,  "AHT40",  4096, NULL, 1, NULL, 1);
+
+  r4 = xTaskCreatePinnedToCore(taskLoRa, "LoRa",   4096, NULL, 2, NULL, 0);
+  r5 = xTaskCreatePinnedToCore(taskDebug,"Debug",  4096, NULL, 0, NULL, 0);
+
+  Serial.println("\n────── TASK CREATION STATUS ──────");
+  Serial.printf("  PMS7003 : %s  (Core 1, P3, 4KB)\n",  r1 == pdPASS ? "✓ OK" : "✗ FAIL");
+  Serial.printf("  SGP30   : %s  (Core 1, P2, 4KB)\n",  r2 == pdPASS ? "✓ OK" : "✗ FAIL");
+  Serial.printf("  AHT40   : %s  (Core 1, P1, 4KB)\n",  r3 == pdPASS ? "✓ OK" : "✗ FAIL");
+  Serial.printf("  LoRa    : %s  (Core 0, P1, 4KB)\n",  r4 == pdPASS ? "✓ OK" : "✗ FAIL");
+  Serial.printf("  Debug   : %s  (Core 0, P1, 4KB)\n",  r5 == pdPASS ? "✓ OK" : "✗ FAIL");
+
+  Serial.println("=== SLAVE READY — FreeRTOS dual-core ===\n");
 }
 
 // ═════════════════════════════════════════════════════════════
 void loop() {
-  unsigned long now = millis();
-
-  // ── 1. Đọc PMS7003 (non-blocking, liên tục) ──
-  if (Serial2.available()) {
-    if (pms.read(pmsData)) {
-      pm1  = pmsData.PM_AE_UG_1_0;
-      pm25 = pmsData.PM_AE_UG_2_5;
-      pm10 = pmsData.PM_AE_UG_10_0;
-    }
-  }
-
-  // ── 2. Đọc SGP30 (mỗi 1s) ──
-  if (sgp_ok && (now - lastSGP >= 1000)) {
-    lastSGP = now;
-    if (sgp.IAQmeasure()) {
-      tvoc = sgp.TVOC;
-      eco2 = sgp.eCO2;
-    }
-  }
-
-  // ── 3. Đọc AHT40 (mỗi 2s) ──
-  if (aht_ok && (now - lastAHT >= 2000)) {
-    lastAHT = now;
-    sensors_event_t h, t;
-    aht.getEvent(&h, &t);
-    temp = t.temperature;
-    hum  = h.relative_humidity;
-  }
-
-  // ── 4. Kiểm tra LoRa RX — Hybrid Polling (không cần DIO0) ──
-  uint8_t irqFlags = readLoRaIRQ();
-  if (irqFlags & 0x40) { // 0x40 là cờ RX_DONE
-    // Đã nhận được gói tin, gọi hàm xử lý
-    handleLoRaRequest();
-  }
-
-  // ── 5. Debug print (mỗi 10s) ──
-  if (now - lastDebug >= 10000) {
-    lastDebug = now;
-    Serial.println("─── Slave Sensor Status ───");
-    Serial.printf("  PM1.0=%u  PM2.5=%u  PM10=%u µg/m³\n", pm1, pm25, pm10);
-    Serial.printf("  TVOC=%u ppb  eCO2=%u ppm\n", tvoc, eco2);
-    Serial.printf("  Temp=%.1f°C  Hum=%.1f%%\n", temp, hum);
-
-    // ★ Auto inference test (không cần Master gửi REQ)
-    g_alert = runAlert();
-
-    Serial.printf("  Alert=%s\n", g_alert.c_str());
-    Serial.println("  [Listening for Master...]\n");
-  }
-
-  delay(50);  // Yield — tránh watchdog reset
+  vTaskDelay(pdMS_TO_TICKS(1000));
 }
