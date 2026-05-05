@@ -28,26 +28,45 @@
 #include <SPI.h>
 #include <LoRa.h>
 #include <master-node_inferencing.h>
+#include <Preferences.h>
+#include <WebServer.h>
+#include <DNSServer.h>
 
 // ============================================================
-//  CẤU HÌNH CHUNG
+//  CẤU HÌNH CHUNG (WiFi + Tọa độ lưu trong NVS, cấu hình qua Captive Portal)
 // ============================================================
-#define WIFI_SSID        "Tuan Thinh"
-#define WIFI_PASSWORD    "0906478818"
 #define SUPABASE_URL     "https://qwkaqgvopobfjshnbnpn.supabase.co"
 #define SUPABASE_KEY     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3a2FxZ3ZvcG9iZmpzaG5ibnBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NTQ5NjgsImV4cCI6MjA5MTIzMDk2OH0.ORUJ3KsBMC4A8YpjrKcnjO4NcT8hdia4pxwRIEUm6z8"
 #define SEND_INTERVAL    10000   // Gửi mỗi 10 giây (ms)
 
 // ── Master Station ──
 #define MASTER_STATION   "Station 1"
-#define MASTER_LAT       16.067631535094975
-#define MASTER_LNG       108.16829376986053
+#define DEFAULT_MASTER_LAT  16.067631535094975
+#define DEFAULT_MASTER_LNG  108.16829376986053
 
 // ── Slave Station ──
 #define SLAVE_ID         "SLAVE01"
 #define SLAVE_STATION    "Slave"
-#define SLAVE_LAT        16.0600    // ← Thay tọa độ thực của Slave
-#define SLAVE_LNG        108.2100   // ← Thay tọa độ thực của Slave
+#define DEFAULT_SLAVE_LAT   16.0600
+#define DEFAULT_SLAVE_LNG   108.2100
+
+// ── Captive Portal Config ──
+#define AP_SSID          "AirQuality-Setup"
+#define AP_PASSWORD      "12345678"
+#define CONFIG_PIN       0         // Nút BOOT (GPIO 0) — nhấn giữ 3s để vào chế độ cấu hình
+
+// ── Biến cấu hình động (đọc từ NVS, fallback = giá trị mặc định) ──
+Preferences prefs;
+String cfg_wifi_ssid;
+String cfg_wifi_pass;
+float  cfg_master_lat = DEFAULT_MASTER_LAT;
+float  cfg_master_lng = DEFAULT_MASTER_LNG;
+float  cfg_slave_lat  = DEFAULT_SLAVE_LAT;
+float  cfg_slave_lng  = DEFAULT_SLAVE_LNG;
+bool   configValid    = false;
+
+WebServer  webServer(80);
+DNSServer  dnsServer;
 
 // ── LoRa Pins (SX1278 / Ra-02) ──
 #define LORA_SCK         18
@@ -152,11 +171,237 @@ String runMasterAlert() {
   return maxLabel;
 }
 
-// ── Kết nối WiFi ─────────────────────────────────────────────
+// ── Load cấu hình từ NVS ─────────────────────────────────────
+bool loadConfig() {
+  prefs.begin("airqcfg", true);  // read-only
+  cfg_wifi_ssid  = prefs.getString("ssid", "");
+  cfg_wifi_pass  = prefs.getString("pass", "");
+  cfg_master_lat = prefs.getFloat("mlat", DEFAULT_MASTER_LAT);
+  cfg_master_lng = prefs.getFloat("mlng", DEFAULT_MASTER_LNG);
+  cfg_slave_lat  = prefs.getFloat("slat", DEFAULT_SLAVE_LAT);
+  cfg_slave_lng  = prefs.getFloat("slng", DEFAULT_SLAVE_LNG);
+  prefs.end();
+
+  configValid = (cfg_wifi_ssid.length() > 0);
+  if (configValid) {
+    Serial.println("[NVS] Cấu hình đã lưu:");
+    Serial.printf("  WiFi: %s\n", cfg_wifi_ssid.c_str());
+    Serial.printf("  Master: (%.6f, %.6f)\n", cfg_master_lat, cfg_master_lng);
+    Serial.printf("  Slave:  (%.6f, %.6f)\n", cfg_slave_lat, cfg_slave_lng);
+  } else {
+    Serial.println("[NVS] Chưa có cấu hình — cần setup qua Captive Portal");
+  }
+  return configValid;
+}
+
+// ── Lưu cấu hình vào NVS ────────────────────────────────────
+void saveConfig(String ssid, String pass, float mlat, float mlng, float slat, float slng) {
+  prefs.begin("airqcfg", false);  // read-write
+  prefs.putString("ssid", ssid);
+  prefs.putString("pass", pass);
+  prefs.putFloat("mlat", mlat);
+  prefs.putFloat("mlng", mlng);
+  prefs.putFloat("slat", slat);
+  prefs.putFloat("slng", slng);
+  prefs.end();
+
+  cfg_wifi_ssid  = ssid;
+  cfg_wifi_pass  = pass;
+  cfg_master_lat = mlat;
+  cfg_master_lng = mlng;
+  cfg_slave_lat  = slat;
+  cfg_slave_lng  = slng;
+  configValid    = true;
+  Serial.println("[NVS] Đã lưu cấu hình mới!");
+}
+
+// ── Xóa cấu hình NVS ────────────────────────────────────────
+void clearConfig() {
+  prefs.begin("airqcfg", false);
+  prefs.clear();
+  prefs.end();
+  configValid = false;
+  Serial.println("[NVS] Đã xóa cấu hình!");
+}
+
+// ── HTML Captive Portal ──────────────────────────────────────
+String scanNetworksJSON() {
+  int n = WiFi.scanNetworks();
+  String json = "[";
+  for (int i = 0; i < n; i++) {
+    if (i > 0) json += ",";
+    json += "{\"ssid\":\"" + WiFi.SSID(i) + "\",\"rssi\":" + String(WiFi.RSSI(i))
+          + ",\"enc\":" + String(WiFi.encryptionType(i) != WIFI_AUTH_OPEN ? 1 : 0) + "}";
+  }
+  json += "]";
+  WiFi.scanDelete();
+  return json;
+}
+
+// ── Trang cấu hình HTML (tối giản, trắng đen) ───────────────
+String getConfigPage() {
+  String html = R"rawliteral(
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AirQuality Setup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#fff;min-height:100vh;display:flex;
+justify-content:center;align-items:center;padding:16px;color:#111}
+.card{border:1px solid #ddd;padding:24px;width:100%;max-width:400px}
+h1{text-align:center;font-size:1.3em;margin-bottom:4px}
+.sub{text-align:center;font-size:0.8em;color:#666;margin-bottom:16px}
+label{display:block;font-size:0.8em;color:#333;margin:10px 0 3px;font-weight:700}
+input{width:100%;padding:8px;border:1px solid #ccc;font-size:0.9em;outline:none}
+input:focus{border-color:#000}
+.row{display:flex;gap:8px}.row>div{flex:1}
+.btn{width:100%;padding:10px;border:none;font-size:0.9em;font-weight:700;cursor:pointer;
+margin-top:16px;background:#000;color:#fff}
+.btn:active{background:#333}
+.scan-btn{background:#fff;color:#000;border:1px solid #000;margin-top:6px;padding:7px;font-size:0.8em}
+.wifi-list{max-height:150px;overflow-y:auto;margin:6px 0;border:1px solid #ddd}
+.wifi-item{padding:7px 10px;cursor:pointer;display:flex;justify-content:space-between;
+border-bottom:1px solid #eee;font-size:0.85em}
+.wifi-item:hover{background:#f0f0f0}
+.wifi-item .name{font-weight:600}
+.wifi-item .info{font-size:0.75em;color:#888}
+#sel{display:none;margin-top:6px;padding:6px 10px;border:1px solid #000;font-size:0.85em}
+.hint{font-size:0.7em;color:#999;font-weight:400}
+</style></head><body>
+<div class="card">
+<h1>Air Quality Setup</h1>
+<p class="sub">Cau hinh WiFi va Toa do GPS</p>
+<form action="/save" method="POST">
+<label>Mang WiFi</label>
+<div class="wifi-list" id="wl"><div style="padding:10px;text-align:center;color:#999">Nhan "Quet WiFi"...</div></div>
+<button type="button" class="btn scan-btn" onclick="scan()">Quet WiFi</button>
+<input type="hidden" name="ssid" id="ssid">
+<div id="sel">Da chon: <strong id="sn"></strong></div>
+<label>Mat khau WiFi</label>
+<input type="password" name="pass" placeholder="Nhap mat khau..." required>
+<label>Toa do Master <span class="hint">(bo trong = mac dinh)</span></label>
+<div class="row">
+<div><input type="text" name="mlat" placeholder="Vi do" value=")rawliteral" + String(DEFAULT_MASTER_LAT, 6) + R"rawliteral("></div>
+<div><input type="text" name="mlng" placeholder="Kinh do" value=")rawliteral" + String(DEFAULT_MASTER_LNG, 6) + R"rawliteral("></div>
+</div>
+<label>Toa do Slave <span class="hint">(bo trong = mac dinh)</span></label>
+<div class="row">
+<div><input type="text" name="slat" placeholder="Vi do" value=")rawliteral" + String(DEFAULT_SLAVE_LAT, 4) + R"rawliteral("></div>
+<div><input type="text" name="slng" placeholder="Kinh do" value=")rawliteral" + String(DEFAULT_SLAVE_LNG, 4) + R"rawliteral("></div>
+</div>
+<button type="submit" class="btn">Luu & Khoi dong</button>
+</form>
+</div>
+<script>
+function scan(){
+  document.getElementById('wl').innerHTML='<div style="padding:10px;text-align:center;color:#999">Dang quet...</div>';
+  fetch('/scan').then(r=>r.json()).then(d=>{
+    let h='';d.sort((a,b)=>b.rssi-a.rssi);
+    d.forEach(w=>{
+      let lock=w.enc?'[khoa]':'';
+      h+='<div class="wifi-item" onclick="pick(\''+w.ssid+'\')"><span class="name">'+w.ssid+' '+lock+'</span><span class="info">'+w.rssi+'dBm</span></div>';
+    });
+    if(!h) h='<div style="padding:10px;text-align:center;color:#999">Khong tim thay mang</div>';
+    document.getElementById('wl').innerHTML=h;
+  });
+}
+function pick(s){
+  document.getElementById('ssid').value=s;
+  document.getElementById('sn').textContent=s;
+  document.getElementById('sel').style.display='block';
+}
+</script></body></html>
+)rawliteral";
+  return html;
+}
+
+String getSuccessPage() {
+  return R"rawliteral(
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Da luu!</title>
+<style>
+body{font-family:Arial,sans-serif;background:#fff;min-height:100vh;display:flex;
+justify-content:center;align-items:center;color:#111}
+.card{border:1px solid #ddd;padding:40px;text-align:center;max-width:360px}
+h1{margin-bottom:8px;font-size:1.2em}
+p{color:#666;font-size:0.9em}
+</style></head><body>
+<div class="card"><h1>Da luu thanh cong!</h1>
+<p>ESP32 se khoi dong lai trong 3 giay...</p></div>
+</body></html>
+)rawliteral";
+}
+
+// ── Khởi chạy Captive Portal ─────────────────────────────────
+void startCaptivePortal() {
+  Serial.println("\n[AP] Khởi động Captive Portal...");
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAP(AP_SSID, AP_PASSWORD);
+  delay(500);
+  Serial.printf("[AP] SSID: %s  |  Pass: %s\n", AP_SSID, AP_PASSWORD);
+  Serial.printf("[AP] IP: %s\n", WiFi.softAPIP().toString().c_str());
+
+  // DNS redirect tất cả domain → IP của AP (captive portal)
+  dnsServer.start(53, "*", WiFi.softAPIP());
+
+  // Route: Trang chính
+  webServer.on("/", HTTP_GET, []() {
+    webServer.send(200, "text/html", getConfigPage());
+  });
+
+  // Route: Quét WiFi
+  webServer.on("/scan", HTTP_GET, []() {
+    webServer.send(200, "application/json", scanNetworksJSON());
+  });
+
+  // Route: Lưu cấu hình
+  webServer.on("/save", HTTP_POST, []() {
+    String ssid = webServer.arg("ssid");
+    String pass = webServer.arg("pass");
+    // Nếu user không nhập tọa độ (bỏ trống hoặc = 0) → dùng giá trị mặc định
+    float mlat  = webServer.arg("mlat").toFloat();
+    float mlng  = webServer.arg("mlng").toFloat();
+    float slat  = webServer.arg("slat").toFloat();
+    float slng  = webServer.arg("slng").toFloat();
+    if (mlat == 0 && mlng == 0) { mlat = DEFAULT_MASTER_LAT; mlng = DEFAULT_MASTER_LNG; }
+    if (slat == 0 && slng == 0) { slat = DEFAULT_SLAVE_LAT;  slng = DEFAULT_SLAVE_LNG;  }
+
+    if (ssid.length() == 0) {
+      webServer.send(400, "text/html", "<h1>Lỗi: Chưa chọn WiFi!</h1>");
+      return;
+    }
+
+    saveConfig(ssid, pass, mlat, mlng, slat, slng);
+    webServer.send(200, "text/html", getSuccessPage());
+
+    // Khởi động lại sau 3s
+    delay(3000);
+    ESP.restart();
+  });
+
+  // Captive portal: redirect mọi request không nhận dạng
+  webServer.onNotFound([]() {
+    webServer.sendHeader("Location", "http://" + WiFi.softAPIP().toString(), true);
+    webServer.send(302, "text/plain", "");
+  });
+
+  webServer.begin();
+  Serial.println("[AP] Web server started — chờ cấu hình...");
+  Serial.println("[AP] Kết nối WiFi '" AP_SSID "' rồi mở trình duyệt");
+
+  // Vòng lặp chờ cấu hình (blocking — chỉ chạy khi chưa có config)
+  while (!configValid) {
+    dnsServer.processNextRequest();
+    webServer.handleClient();
+    delay(10);
+  }
+}
+
+// ── Kết nối WiFi (dùng cấu hình từ NVS) ─────────────────────
 void connectWiFi() {
-  Serial.printf("[WiFi] Kết nối: %s\n", WIFI_SSID);
+  Serial.printf("[WiFi] Kết nối: %s\n", cfg_wifi_ssid.c_str());
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.begin(cfg_wifi_ssid.c_str(), cfg_wifi_pass.c_str());
   int retry = 0;
   while (WiFi.status() != WL_CONNECTED && retry++ < 30) {
     delay(500); Serial.print(".");
@@ -377,7 +622,7 @@ void sendAllToSupabase() {
 
   // 1. Gửi data Master (Station 1)
   postToSupabase(
-    MASTER_STATION, MASTER_LAT, MASTER_LNG,
+    MASTER_STATION, cfg_master_lat, cfg_master_lng,
     g_pm1_0, g_pm2_5, g_pm10,
     g_co2, g_temp, g_hum,
     0, false,
@@ -387,7 +632,7 @@ void sendAllToSupabase() {
   // 2. Gửi data Slave (nếu online)
   if (slave_online) {
     postToSupabase(
-      SLAVE_STATION, SLAVE_LAT, SLAVE_LNG,
+      SLAVE_STATION, cfg_slave_lat, cfg_slave_lng,
       (float)slave_pm1, (float)slave_pm25, (float)slave_pm10,
       (int)slave_eco2,          // eCO2 → gửi vào cột co2
       slave_temp, slave_hum,
@@ -640,8 +885,30 @@ void setup() {
   delay(2000);
 
   Serial.println("\n=== MASTER NODE — Air Quality Monitor ===");
-  Serial.printf("    Station: %s  (%.4f, %.4f)\n", MASTER_STATION, MASTER_LAT, MASTER_LNG);
-  Serial.printf("    Slave:   %s (%s)\n", SLAVE_ID, SLAVE_STATION);
+  Serial.println("    (WiFi + GPS cấu hình qua Captive Portal)");
+
+  // ── Nút BOOT (GPIO 0): nhấn giữ 3s lúc khởi động → xóa config ──
+  pinMode(CONFIG_PIN, INPUT_PULLUP);
+  if (digitalRead(CONFIG_PIN) == LOW) {
+    Serial.println("[BOOT] Nút BOOT đang được nhấn — chờ 3s để xóa config...");
+    delay(3000);
+    if (digitalRead(CONFIG_PIN) == LOW) {
+      clearConfig();
+      Serial.println("[BOOT] Đã xóa config! Khởi động Captive Portal...");
+    }
+  }
+
+  // ── Load cấu hình từ NVS ──
+  loadConfig();
+
+  // ── Nếu chưa có config → mở Captive Portal (blocking) ──
+  if (!configValid) {
+    startCaptivePortal();  // Block ở đây cho đến khi user cấu hình xong → ESP restart
+    return;                // Không bao giờ đến đây (ESP đã restart)
+  }
+
+  Serial.printf("    Station: %s  (%.6f, %.6f)\n", MASTER_STATION, cfg_master_lat, cfg_master_lng);
+  Serial.printf("    Slave:   %s (%s) (%.6f, %.6f)\n", SLAVE_ID, SLAVE_STATION, cfg_slave_lat, cfg_slave_lng);
 
   // ── UART sensors (tăng RX buffer lên 1024 bytes — chứa ~32 frame PMS khi WiFi chiếm CPU) ──
   pmsSerial.setRxBufferSize(1024);
@@ -678,7 +945,7 @@ void setup() {
     Serial.println("[LoRa] FAIL — chạy không có slave data");
   }
 
-  // ── WiFi ──
+  // ── WiFi (dùng SSID/Pass từ NVS) ──
   connectWiFi();
 
   // ── Kiểm tra RAM trước khi tạo task ──
@@ -708,15 +975,30 @@ void setup() {
   Serial.printf("  CO2-C8  : UART1 (RX=32, TX=33)\n");
   Serial.printf("  AHT40   : %s\n", aht_ok ? "✓ OK" : "✗ FAIL");
   Serial.printf("  LoRa    : %s\n", lora_ok ? "✓ OK" : "✗ FAIL");
-  Serial.printf("  WiFi    : %s\n", WiFi.status() == WL_CONNECTED ? "✓ OK" : "✗ FAIL");
+  Serial.printf("  WiFi    : %s  (%s)\n", WiFi.status() == WL_CONNECTED ? "✓ OK" : "✗ FAIL", cfg_wifi_ssid.c_str());
   Serial.println("─────────────────────────────");
   Serial.println("=== MASTER READY — FreeRTOS dual-core ===\n");
 }
 
 // ═════════════════════════════════════════════════════════════
 void loop() {
-  // loop() trống — TẤT CẢ công việc đã chuyển sang FreeRTOS Tasks:
-  //   Core 1: PMS7003 (P3), CO2-C8 (P2), AHT40 (P1)
-  //   Core 0: WiFi/Supabase + LoRa + TinyML (P1)
-  vTaskDelay(pdMS_TO_TICKS(1000));
+  // ── Nhấn giữ BOOT 2s bất kỳ lúc nào → xóa config → restart vào Captive Portal ──
+  static unsigned long bootPressStart = 0;
+  static bool bootPressed = false;
+
+  if (digitalRead(CONFIG_PIN) == LOW) {
+    if (!bootPressed) {
+      bootPressed = true;
+      bootPressStart = millis();
+    } else if (millis() - bootPressStart >= 2000) {
+      Serial.println("[BOOT] Giu 2s! Xoa config, restart...");
+      clearConfig();
+      delay(500);
+      ESP.restart();
+    }
+  } else {
+    bootPressed = false;
+  }
+
+  vTaskDelay(pdMS_TO_TICKS(100));
 }

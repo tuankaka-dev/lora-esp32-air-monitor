@@ -27,9 +27,9 @@ const DEFAULT_CENTER: L.LatLngExpression = [16.0544, 108.2022];
 
 // ── IDW Config ──
 const IDW_POWER = 2.0;             // p=2.0 (chuẩn)
-const IDW_MAX_INFLUENCE_KM = 2;    // 4km: phù hợp 15 trạm tập trung trong Đà Nẵng
+const IDW_MAX_INFLUENCE_KM = 1;    // 4km: phù hợp 15 trạm tập trung trong Đà Nẵng
 const IDW_CELL_SIZE = 2;           // 4px: hiệu suất cực nhanh, phù hợp smooth IDW
-const IDW_OPACITY = 0.55;          // Giảm độ đục để màu sắc dịu nhẹ, hài hòa hơn
+const IDW_OPACITY = 0.60;          // Giảm độ đục để màu sắc dịu nhẹ, hài hòa hơn
 
 // ── Create IDW GridLayer class ──
 function createIDWLayer(nodesRef: React.MutableRefObject<IDWNode[]>) {
@@ -200,8 +200,8 @@ export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos
           background-color: ${lvl.color}; 
           color: ${textColor};
           border: 2px solid #fff; 
-          width: 32px; 
-          height: 32px; 
+          width: 48px; 
+          height: 48px; 
           border-radius: 50%; 
           display: flex; 
           align-items: center; 
