@@ -1,5 +1,7 @@
 import AdminDashboard from '@/components/AdminDashboard';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Admin Dashboard - AirQ Monitor',
   description: 'Quản lý dữ liệu không khí thủ công',
