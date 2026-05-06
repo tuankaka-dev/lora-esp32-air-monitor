@@ -158,7 +158,7 @@ export default function Dashboard() {
             }
           }
           if (bestLabel) {
-            (node as Record<string, unknown>).alert = bestLabel;
+            node.alert = bestLabel;
           }
         }
 

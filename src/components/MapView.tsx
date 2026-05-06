@@ -239,7 +239,7 @@ export default function MapView({ nodes, selectedNodeName, onSelectNode, userPos
       }
 
       // ── Alert từ TinyML (nhãn: FIRE, High_co2, NORMAL, Traffic) ──
-      const rawAlert = (d as Record<string, unknown>).alert as string | null;
+      const rawAlert = d.alert;
       const alertInfo: Record<string, { icon: string; text: string; color: string }> = {
         'NORMAL': { icon: '✅', text: 'Bình thường', color: '#00e400' },
         'HIGH_CO2': { icon: '🏭', text: 'CO₂ cao', color: '#ff7e00' },
