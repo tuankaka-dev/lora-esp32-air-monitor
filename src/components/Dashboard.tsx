@@ -376,9 +376,9 @@ export default function Dashboard() {
         <StationDetail node={latest} onClose={() => setShowDetail(false)} />
       )}
 
-      {/* ── Right Stations Table ── */}
-      {isFullMap && !showDetail && (
-        <div className={styles.rightSidebar}>
+      {/* ── Right Stations Table (always visible in full-map mode) ── */}
+      {isFullMap && (
+        <div className={`${styles.rightSidebar} ${showDetail ? styles.sidebarShifted : ''}`}>
           <div className={styles.sidebarHeader}>Các trạm đo ({nodes.length})</div>
           <div className={styles.list}>
             {nodes.map(n => {
@@ -389,7 +389,10 @@ export default function Dashboard() {
                 <div
                   key={n.station_name}
                   className={`${styles.listItem} ${selectedName === n.station_name ? styles.active : ''}`}
-                  onClick={() => { handleSelectNode(n.station_name!); }}
+                  onClick={() => {
+                    handleSelectNode(n.station_name!);
+                    setShowDetail(true);
+                  }}
                 >
                   <div className={styles.listName}>{n.station_name}</div>
                   {dist && <div className={styles.listDist}>{dist}</div>}

@@ -458,6 +458,12 @@
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  transition: right 0.35s cubic-bezier(0.16, 1, 0.3, 1), width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rightSidebar.sidebarShifted {
+  right: 430px;
+  width: 280px;
 }
 
 .sidebarHeader {
