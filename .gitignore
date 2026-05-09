@@ -1,7 +1,9 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
+# ────────────────────────────────────────
+# Dependencies
+# ────────────────────────────────────────
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -10,32 +12,71 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
-/.next/
+# ────────────────────────────────────────
+# Next.js build output
+# ────────────────────────────────────────
+.next/
 /out/
+/build/
+/coverage/
 
-# production
-/build
+# ────────────────────────────────────────
+# Environment & secrets
+# ────────────────────────────────────────
+.env
+.env.*
+!.env.example
 
-# misc
+# ────────────────────────────────────────
+# TypeScript
+# ────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ────────────────────────────────────────
+# Edge Impulse / TinyML – prebuilt zips
+# (nặng, có thể tải lại từ Edge Impulse)
+# ────────────────────────────────────────
+
+
+# ────────────────────────────────────────
+# Seed / test scripts (không cần trong prod)
+# ────────────────────────────────────────
+seed.js
+seed_vietnam.js
+check_alerts.js
+
+# ────────────────────────────────────────
+# IDE & editor
+# ────────────────────────────────────────
+.theia/
+.vscode/
+.idea/
+*.suo
+*.user
+
+# ────────────────────────────────────────
+# OS artifacts
+# ────────────────────────────────────────
 .DS_Store
-*.pem
+Thumbs.db
+desktop.ini
 
-# debug
+# ────────────────────────────────────────
+# Logs & debug
+# ────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
+# ────────────────────────────────────────
+# Vercel
+# ────────────────────────────────────────
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# ────────────────────────────────────────
+# Misc
+# ────────────────────────────────────────
+*.pem

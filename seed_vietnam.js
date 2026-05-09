@@ -31,57 +31,45 @@ function pm25ToAQI(pm) {
 // Format: [tên, lat, lng, base_pm25]
 
 const STATIONS = [
-  // ════ LƯỚI TRUNG TÂM 5×3 (Hải Châu – Thanh Khê – Mỹ Khê) ════
-  // Hàng Bắc (+3km)
-  ['Đà Nẵng – Thanh Khê Bắc',           16.0814, 108.1881,  32],  // 🟡 Vàng
-  ['Đà Nẵng – Hải Châu Bắc',            16.0814, 108.2022,  55],  // 🟠 Cam
-  ['Đà Nẵng – Sơn Trà Nam',             16.0814, 108.2163,  14],  // 🟢 Xanh
-  // Hàng 2 (+1.5km)
-  ['Đà Nẵng – Thanh Khê Tây',           16.0679, 108.1881,  48],  // 🟠 Cam nhẹ
-  ['Đà Nẵng – Hải Châu (Trần Phú)',     16.0679, 108.2022,  62],  // 🔴 Đỏ
-  ['Đà Nẵng – Mỹ Khê Bắc',             16.0679, 108.2163,  18],  // 🟢 Xanh
-  // Hàng trung tâm (center)
-  ['Đà Nẵng – Thanh Khê (KCN nhỏ)',    16.0544, 108.1881,  70],  // 🔴 Đỏ
-  ['Đà Nẵng – Hải Châu (Trung tâm)',    16.0544, 108.2022,  58],  // 🟠 Cam
-  ['Đà Nẵng – Mỹ Khê (Bãi biển)',      16.0544, 108.2163,  20],  // 🟢 Xanh
-  // Hàng 4 (-1.5km)
-  ['Đà Nẵng – Hải Châu Tây Nam',       16.0409, 108.1881,  45],  // 🟠 Cam nhẹ
-  ['Đà Nẵng – Hải Châu Nam (Cầu Đỏ)',  16.0409, 108.2022,  52],  // 🟠 Cam
-  ['Đà Nẵng – Ngũ Hành Sơn Bắc',      16.0409, 108.2163,  25],  // 🟡 Vàng nhẹ
-  // Hàng Nam (-3km)
-  ['Đà Nẵng – Cẩm Lệ (Bắc)',          16.0274, 108.1881,  38],  // 🟡 Vàng
-  ['Đà Nẵng – Hòa Thuận Đông',         16.0274, 108.2022,  42],  // 🟡 Vàng
-  ['Đà Nẵng – Ngũ Hành Sơn (Nam)',     16.0274, 108.2163,  22],  // 🟢 Xanh nhẹ
+  // ════ KHU VỰC LIÊN CHIỂU (KCN, Bến xe, Biển) ════
+  ['Liên Chiểu - KCN Hòa Khánh',           16.0840, 108.1500,  75], // 🔴 Đỏ (Công nghiệp)
+  ['Liên Chiểu - KCN Hòa Khánh Mở Rộng',   16.0950, 108.1400,  85], // 🔴 Đỏ
+  ['Liên Chiểu - Bến xe Trung tâm',        16.0550, 108.1680,  65], // 🔴 Đỏ (Giao thông)
+  ['Liên Chiểu - Ngã ba Huế',              16.0600, 108.1750,  80], // 🔴 Đỏ (Nút giao thông lớn)
+  
+  ['Liên Chiểu - Trục 1 Tây Bắc',          16.0780, 108.1600,  50], // 🟠 Cam
+  ['Liên Chiểu - Chợ Hòa Khánh',           16.0800, 108.1550,  55], // 🟠 Cam
+  ['Liên Chiểu - ĐH Bách Khoa',            16.0735, 108.1500,  45], // 🟠 Cam
+  ['Liên Chiểu - ĐH Sư Phạm',              16.0650, 108.1580,  40], // 🟠 Cam
+  
+  ['Liên Chiểu - Nguyễn Tất Thành',        16.0850, 108.1650,  30], // 🟡 Vàng
+  ['Liên Chiểu - Hòa Minh (Biển)',         16.0750, 108.1750,  25], // 🟡 Vàng
+  
+  ['Liên Chiểu - Hòa Hiệp Nam',            16.1050, 108.1300,  20], // 🟢 Xanh
+  ['Liên Chiểu - KĐT Ecopark Tây Bắc',     16.0900, 108.1350,  12], // 🟢 Xanh
+  ['Liên Chiểu - Nam Ô',                   16.1200, 108.1250,   8], // 🟢 Xanh (Biển xa)
+  ['Liên Chiểu - Hồ sinh thái',            16.0700, 108.1450,  10], // 🟢 Xanh
 
-  // ════ CỤM HÒA PHÚ – Tây Bắc (Xanh, ngoại ô đồi núi) ════
-  ['Đà Nẵng – Hòa Phú (Tây Bắc)',      16.1070, 108.0960,  10],  // 🟢 Xanh – gốc
-  ['Đà Nẵng – Hòa Phú (Đông)',         16.1070, 108.1101,  12],  // 🟢 Xanh – +1.5km đông
-  ['Đà Nẵng – Hòa Phú (Bắc)',          16.1205, 108.0960,   8],  // 🟢 Xanh – +1.5km bắc
+  // ════ KHU VỰC THANH KHÊ (Dân cư đông, Sân bay, Chợ) ════
+  ['Thanh Khê - Sân bay Đà Nẵng (Tây)',    16.0450, 108.1850,  70], // 🔴 Đỏ
+  ['Thanh Khê - Sân bay Đà Nẵng (Bắc)',    16.0550, 108.1950,  65], // 🔴 Đỏ
+  ['Thanh Khê - Chợ Cồn',                  16.0680, 108.2100,  60], // 🔴 Đỏ
+  ['Thanh Khê - Ga Đà Nẵng',               16.0750, 108.2100,  62], // 🔴 Đỏ
 
-  // ════ CỤM HÒA VANG – Tây (Xanh, vùng quê) ════
-  ['Đà Nẵng – Hòa Vang (Ái Nghĩa)',    16.0880, 108.0480,   8],  // 🟢 Xanh – gốc
-  ['Đà Nẵng – Hòa Vang (Đông)',        16.0880, 108.0621,  11],  // 🟢 Xanh – +1.5km đông
-  ['Đà Nẵng – Hòa Vang (Bắc)',         16.1015, 108.0480,  13],  // 🟢 Xanh – +1.5km bắc
+  ['Thanh Khê - Nguyễn Văn Linh',          16.0580, 108.2050,  55], // 🟠 Cam
+  ['Thanh Khê - Điện Biên Phủ',            16.0650, 108.1950,  55], // 🟠 Cam
+  ['Thanh Khê - Lê Duẩn',                  16.0720, 108.2000,  50], // 🟠 Cam
+  ['Thanh Khê - Siêu thị Go!',             16.0650, 108.2150,  45], // 🟠 Cam
+  ['Thanh Khê - Thanh Khê Tây',            16.0650, 108.1800,  40], // 🟠 Cam
+  ['Thanh Khê - Trần Cao Vân',             16.0750, 108.1850,  38], // 🟠 Cam
 
-  // ════ CỤM SƠN TRÀ – Đông Bắc (Xanh, ven bán đảo) ════
-  // Sửa lng: 108.2460→108.2350 tránh ra biển
-  ['Đà Nẵng – Sơn Trà (Phạm Văn Đồng)', 16.0920, 108.2350,  14],  // 🟢 Xanh – gốc
-  ['Đà Nẵng – Sơn Trà (Bắc)',           16.1055, 108.2350,  12],  // 🟢 Xanh – +1.5km bắc
-  ['Đà Nẵng – Sơn Trà (Nam)',           16.0785, 108.2350,  16],  // 🟢 Xanh – +1.5km nam
+  ['Thanh Khê - Thanh Khê Đông',           16.0680, 108.1900,  35], // 🟡 Vàng
+  ['Thanh Khê - Vĩnh Trung',               16.0650, 108.2000,  30], // 🟡 Vàng
+  ['Thanh Khê - Xuân Hà',                  16.0750, 108.1950,  28], // 🟡 Vàng
+  ['Thanh Khê - Bờ hồ Hàm Nghi',           16.0620, 108.2050,  25], // 🟡 Vàng
+  ['Thanh Khê - Thạc Gián',                16.0580, 108.1950,  22], // 🟡 Vàng
 
-  // ════ CỤM NON NƯỚC – Đông Nam (Xanh, danh thắng) ════
-  // Sửa lng: 108.2630→108.2480 tránh ra biển
-  ['Đà Nẵng – Non Nước (Ngũ Hành Sơn)', 16.0010, 108.2480,  20],  // 🟢 Xanh – gốc
-  ['Đà Nẵng – Non Nước (Bắc)',           16.0145, 108.2480,  22],  // 🟢 Xanh – +1.5km bắc
-  ['Đà Nẵng – Non Nước (Tây)',           16.0010, 108.2339,  24],  // 🟢 Xanh – +1.5km tây
-
-  // ════ KHU CÔNG NGHIỆP / VEN BIỂN TÂY BẮC (tọa độ đã sửa) ════
-  // KCN Hòa Khánh thực tế ~16.084°N, 108.171°E (lùi vào đất liền)
-  ['Đà Nẵng – KCN Hòa Khánh',           16.0840, 108.1710,  75],  // 🔴 Đỏ
-  // Liên Chiểu nội thành, trên đường ven biển (108.187 thay vì 108.139 nằm giữa vịnh)
-  ['Đà Nẵng – Liên Chiểu (Cảng Tiên Sa)', 16.1050, 108.1870,  65],  // 🔴 Đỏ
-  // Nam Ô beach thực tế ~16.133°N, 108.087°E (phía tây bắc, không phải giữa vịnh)
-  ['Đà Nẵng – Liên Chiểu (Bãi Nam Ô)',   16.1300, 108.0870,  22],  // 🟡 Vàng
+  ['Thanh Khê - Công viên 29/3',           16.0600, 108.1900,  12], // 🟢 Xanh (Công viên)
 ];
 
 
@@ -141,13 +129,12 @@ async function seed() {
   console.log(`   Coverage: 🟢Xanh ← 🟡Vàng ← 🟠Cam ← 🔴Đỏ`);
   console.log(`   Each station: 48 records | Total: ${STATIONS.length * 48}\n`);
 
-  // ── Xóa dữ liệu cũ để tránh duplicate marker trên map ──
-  const stationNames = STATIONS.map(s => s[0]);
-  process.stdout.write('  🗑  Clearing old records...');
+  // ── Xóa toàn bộ dữ liệu cũ để tránh duplicate marker trên map ──
+  process.stdout.write('  🗑  Clearing ALL old records...');
   const { error: delErr } = await supabase
     .from('sensor_readings')
     .delete()
-    .in('station_name', stationNames);
+    .neq('station_name', 'DELETE_ALL_HACK'); // Xóa tất cả các bản ghi
   if (delErr) console.error('\n  ⚠ Delete error:', delErr.message);
   else console.log(' done\n');
 
@@ -180,12 +167,12 @@ async function seed() {
   console.log(`\n\n✅ Done! Inserted ${totalInserted} records across ${STATIONS.length - errors} stations.`);
   if (errors > 0) console.log(`⚠  ${errors} station(s) had errors.`);
 
-  console.log('\n── AQI Distribution – Đà Nẵng ──');
-  console.log(`  🟢 XANH : Hòa Phú, Hòa Vang, Sơn Trà, Non Nước, Mỹ Khê, Nam Ô`);
-  console.log(`  🟡 VÀNG : TK Bắc, NHS Bắc/Nam, Cẩm Lệ, Hòa Thuận`);
-  console.log(`  🟠 CAM  : Hải Châu, Thanh Khê Tây, Liên Chiểu nội`);
-  console.log(`  🔴 ĐỎ   : Hải Châu Trần Phú, TK KCN, KCN Hòa Khánh, Liên Chiểu Cảng`);
-  console.log(`\n  Total: ${STATIONS.length} stations in Đà Nẵng`);
+  console.log('\n── AQI Distribution – Liên Chiểu & Thanh Khê ──');
+  console.log(`  🟢 XANH : Nam Ô, Hồ sinh thái, Ecopark TB, Công viên 29/3`);
+  console.log(`  🟡 VÀNG : Nguyễn Tất Thành, Biển Hòa Minh, Bờ hồ Hàm Nghi, Thạc Gián...`);
+  console.log(`  🟠 CAM  : ĐH Bách Khoa, Sư Phạm, Nguyễn Văn Linh, Lê Duẩn, Điện Biên Phủ...`);
+  console.log(`  🔴 ĐỎ   : KCN Hòa Khánh, Sân bay Đà Nẵng, Ngã ba Huế, Bến xe Trung tâm, Chợ Cồn`);
+  console.log(`\n  Total: ${STATIONS.length} stations densely placed in Liên Chiểu & Thanh Khê`);
 }
 
 seed().catch(console.error);
