@@ -46,7 +46,7 @@ Sơ đồ dưới đây mô tả toàn bộ luồng xử lý của hệ thống,
 
 ## TinyML – Phân loại cảnh báo
 
-Cả Master và Slave đều chạy mô hình **Edge Impulse** ngay trên chip ESP32 để phân loại trạng thái môi trường thành 4 nhãn: **FIRE**, **High\_CO2**, **Traffic**, **NORMAL**.
+Cả Master và Slave đều chạy mô hình **Edge Impulse** ngay trên chip ESP32 để phân loại trạng thái môi trường thành 4 nhãn: **FIRE**, **High\_CO2**, **Traffic**, **NORMAL**, **CHEMICAL**.
 
 Confusion matrix dưới đây thể hiện độ chính xác của mô hình TinyML được triển khai:
 
@@ -96,7 +96,7 @@ root/
 ├── tuankaka-dev-project-1_inferencing/ # Edge Impulse model (Slave)
 ├── supabase_schema.sql                 # Schema database chính
 ├── supabase_setup.sql                  # Setup bổ sung
-└── seed.js / seed_vietnam.js           # Seed dữ liệu mẫu (tùy chọn)
+└── seed_vietnam.js           # Seed dữ liệu mẫu (tùy chọn)
 ```
 
 ---
